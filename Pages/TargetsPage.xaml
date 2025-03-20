@@ -1,0 +1,31 @@
+<Page
+    x:Class="WinUI_V3.Pages.TargetsPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d"
+    Style="{StaticResource SettingsPageStyle}">
+
+    <ScrollViewer>
+        <StackPanel Spacing="32">
+            <TextBlock Text="Targets"/>
+            
+            <!-- Main Targets Section -->
+            <StackPanel Style="{StaticResource SettingsGroupStyle}">
+                <TextBlock Text="Main Targets" Style="{StaticResource SettingsTitleStyle}"/>
+                <Button Content="Add New Target" Style="{StaticResource SettingsButtonStyle}"/>
+                <Button Content="Manage Existing Targets" Style="{StaticResource SettingsButtonStyle}"/>
+                <Button Content="Target Statistics" Style="{StaticResource SettingsButtonStyle}"/>
+            </StackPanel>
+
+            <!-- Target Categories -->
+            <StackPanel Style="{StaticResource SettingsGroupStyle}">
+                <TextBlock Text="Target Categories" Style="{StaticResource SettingsTitleStyle}"/>
+                <Button Content="Create Category" Style="{StaticResource SettingsButtonStyle}"/>
+                <Button Content="Edit Categories" Style="{StaticResource SettingsButtonStyle}"/>
+                <Button Content="Category Overview" Style="{StaticResource SettingsButtonStyle}"/>
+            </StackPanel>
+        </StackPanel>
+    </ScrollViewer>
+</Page> 

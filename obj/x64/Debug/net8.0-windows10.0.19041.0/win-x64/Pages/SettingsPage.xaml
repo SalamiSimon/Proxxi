@@ -1,0 +1,40 @@
+﻿<Page
+    x:Class="WinUI_V3.Pages.SettingsPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d"
+    Style="{StaticResource SettingsPageStyle}">
+
+    <ScrollViewer>
+        <StackPanel Spacing="32">
+            <TextBlock Text="Settings"/>
+            
+            <!-- General Settings -->
+            <StackPanel Style="{StaticResource SettingsGroupStyle}">
+                <TextBlock Text="General" Style="{StaticResource SettingsTitleStyle}"/>
+                <Button Content="Appearance" Style="{StaticResource SettingsButtonStyle}"/>
+                <Button Content="Notifications" Style="{StaticResource SettingsButtonStyle}"/>
+                <Button Content="Language &amp; Region" Style="{StaticResource SettingsButtonStyle}"/>
+            </StackPanel>
+
+            <!-- Privacy &amp; Security -->
+            <StackPanel Style="{StaticResource SettingsGroupStyle}">
+                <TextBlock Text="Privacy &amp; Security" Style="{StaticResource SettingsTitleStyle}"/>
+                <Button Content="Data Collection" Style="{StaticResource SettingsButtonStyle}"/>
+                <Button Content="Security Settings" Style="{StaticResource SettingsButtonStyle}"/>
+                <Button Content="Permissions" Style="{StaticResource SettingsButtonStyle}"/>
+            </StackPanel>
+
+            <!-- Updates -->
+            <StackPanel Style="{StaticResource SettingsGroupStyle}">
+                <TextBlock Text="Updates" Style="{StaticResource SettingsTitleStyle}"/>
+                <Button Content="Check for Updates" Style="{StaticResource SettingsButtonStyle}"/>
+                <Button Content="Update History" Style="{StaticResource SettingsButtonStyle}"/>
+                <Button Content="Advanced Update Options" Style="{StaticResource SettingsButtonStyle}"/>
+            </StackPanel>
+        </StackPanel>
+    </ScrollViewer>
+</Page> 
+

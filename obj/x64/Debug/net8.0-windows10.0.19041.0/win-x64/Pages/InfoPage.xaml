@@ -1,0 +1,40 @@
+﻿<Page
+    x:Class="WinUI_V3.Pages.InfoPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d"
+    Style="{StaticResource SettingsPageStyle}">
+
+    <ScrollViewer>
+        <StackPanel Spacing="32">
+            <TextBlock Text="Info"/>
+            
+            <!-- About -->
+            <StackPanel Style="{StaticResource SettingsGroupStyle}">
+                <TextBlock Text="About" Style="{StaticResource SettingsTitleStyle}"/>
+                <Button Content="Version Information" Style="{StaticResource SettingsButtonStyle}"/>
+                <Button Content="License Information" Style="{StaticResource SettingsButtonStyle}"/>
+                <Button Content="Terms of Service" Style="{StaticResource SettingsButtonStyle}"/>
+            </StackPanel>
+
+            <!-- Support -->
+            <StackPanel Style="{StaticResource SettingsGroupStyle}">
+                <TextBlock Text="Support" Style="{StaticResource SettingsTitleStyle}"/>
+                <Button Content="Help Center" Style="{StaticResource SettingsButtonStyle}"/>
+                <Button Content="Contact Support" Style="{StaticResource SettingsButtonStyle}"/>
+                <Button Content="FAQ" Style="{StaticResource SettingsButtonStyle}"/>
+            </StackPanel>
+
+            <!-- Legal -->
+            <StackPanel Style="{StaticResource SettingsGroupStyle}">
+                <TextBlock Text="Legal" Style="{StaticResource SettingsTitleStyle}"/>
+                <Button Content="Privacy Policy" Style="{StaticResource SettingsButtonStyle}"/>
+                <Button Content="Cookie Policy" Style="{StaticResource SettingsButtonStyle}"/>
+                <Button Content="Third-Party Licenses" Style="{StaticResource SettingsButtonStyle}"/>
+            </StackPanel>
+        </StackPanel>
+    </ScrollViewer>
+</Page> 
+

@@ -1,0 +1,271 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <Machine>DESKTOP-EC39SJC</Machine>
+    <WindowsUser>Sten</WindowsUser>
+    <TargetPlatformIdentifier>Windows</TargetPlatformIdentifier>
+    <TargetOsVersion>10.0</TargetOsVersion>
+    <TargetOsDescription>Windows 10.0</TargetOsDescription>
+    <SolutionConfiguration>Release|x64</SolutionConfiguration>
+    <PackageArchitecture>x64</PackageArchitecture>
+    <PackageIdentityName>af81be9f-abee-4326-9946-f11f232bf729</PackageIdentityName>
+    <PackageIdentityPublisher>CN=Sten</PackageIdentityPublisher>
+    <IntermediateOutputPath>C:\Users\Sten\source\repos\WinUI_V3\WinUI_V3\obj\x64\Release\net8.0-windows10.0.19041.0\win-x64\</IntermediateOutputPath>
+    <RemoteDeploymentType>CopyToDevice</RemoteDeploymentType>
+    <PackageRegistrationPath>
+    </PackageRegistrationPath>
+    <RemoveNonLayoutFiles>false</RemoveNonLayoutFiles>
+    <DeployOptionalPackages>false</DeployOptionalPackages>
+    <WindowsSdkPath>C:\Program Files %28x86%29\Windows Kits\10\</WindowsSdkPath>
+    <LayoutDir>C:\Users\Sten\source\repos\WinUI_V3\WinUI_V3\bin\x64\Release\net8.0-windows10.0.19041.0\win-x64\AppX</LayoutDir>
+    <RegisteredManifestChecksum>B8BB7D34DB9EC7ED743EA90047BEF0CFBF25ED0502C1A5A82090F222A99997F6</RegisteredManifestChecksum>
+    <RegisteredPackageMoniker>af81be9f-abee-4326-9946-f11f232bf729_1.0.0.0_x64__tw7gv5t9gh872</RegisteredPackageMoniker>
+    <RegisteredUserModeAppID>af81be9f-abee-4326-9946-f11f232bf729_tw7gv5t9gh872!App</RegisteredUserModeAppID>
+    <RegisteredPackageID>af81be9f-abee-4326-9946-f11f232bf729</RegisteredPackageID>
+    <RegisteredPackagePublisher>CN=Sten</RegisteredPackagePublisher>
+    <RegisteredVersion>1.0.0.0</RegisteredVersion>
+  </PropertyGroup>
+  <ItemGroup>
+    <AppXManifest Include="C:\Users\Sten\source\repos\WinUI_V3\WinUI_V3\bin\x64\Release\net8.0-windows10.0.19041.0\win-x64\AppxManifest.xml">
+      <PackagePath>AppxManifest.xml</PackagePath>
+      <ReRegisterAppIfChanged>true</ReRegisterAppIfChanged>
+      <Modified>2025-03-20T18:22:39.577</Modified>
+    </AppXManifest>
+  </ItemGroup>
+  <ItemGroup>
+    <AppxPackagedFile Include="C:\Users\Sten\source\repos\WinUI_V3\WinUI_V3\bin\x64\Release\net8.0-windows10.0.19041.0\win-x64\resources.pri">
+      <PackagePath>resources.pri</PackagePath>
+      <Modified>2025-03-20T18:22:28.777</Modified>
+    </AppxPackagedFile>
+    <AppxPackagedFile Include="C:\Users\Sten\source\repos\WinUI_V3\WinUI_V3\bin\x64\Release\net8.0-windows10.0.19041.0\win-x64\WinUI_V3.runtimeconfig.json">
+      <PackagePath>WinUI_V3.runtimeconfig.json</PackagePath>
+      <Modified>2025-03-20T18:22:28.545</Modified>
+    </AppxPackagedFile>
+    <AppxPackagedFile Include="C:\Users\Sten\source\repos\WinUI_V3\WinUI_V3\obj\x64\Release\net8.0-windows10.0.19041.0\win-x64\apphost.exe">
+      <PackagePath>WinUI_V3.exe</PackagePath>
+      <Modified>2025-03-20T18:22:28.082</Modified>
+    </AppxPackagedFile>
+    <AppxPackagedFile Include="C:\Users\Sten\.nuget\packages\microsoft.netcore.app.runtime.win-x64\8.0.13\runtimes\win-x64\native\Microsoft.DiaSymReader.Native.amd64.dll">
+      <PackagePath>Microsoft.DiaSymReader.Native.amd64.dll</PackagePath>
+      <Modified>2024-11-27T04:18:14.000</Modified>
+    </AppxPackagedFile>
+    <AppxPackagedFile Include="C:\Users\Sten\.nuget\packages\microsoft.netcore.app.runtime.win-x64\8.0.13\runtimes\win-x64\native\System.IO.Compression.Native.dll">
+      <PackagePath>System.IO.Compression.Native.dll</PackagePath>
+      <Modified>2025-01-16T19:08:14.000</Modified>
+    </AppxPackagedFile>
+    <AppxPackagedFile Include="C:\Users\Sten\.nuget\packages\microsoft.netcore.app.runtime.win-x64\8.0.13\runtimes\win-x64\native\clretwrc.dll">
+      <PackagePath>clretwrc.dll</PackagePath>
+      <Modified>2025-01-16T18:57:20.000</Modified>
+    </AppxPackagedFile>
+    <AppxPackagedFile Include="C:\Users\Sten\.nuget\packages\microsoft.netcore.app.runtime.win-x64\8.0.13\runtimes\win-x64\native\clrgc.dll">
+      <PackagePath>clrgc.dll</PackagePath>
+      <Modified>2025-01-16T18:55:22.000</Modified>
+    </AppxPackagedFile>
+    <AppxPackagedFile Include="C:\Users\Sten\.nuget\packages\microsoft.netcore.app.runtime.win-x64\8.0.13\runtimes\win-x64\native\clrjit.dll">
+      <PackagePath>clrjit.dll</PackagePath>
+      <Modified>2025-01-16T18:54:28.000</Modified>
+    </AppxPackagedFile>
+    <AppxPackagedFile Include="C:\Users\Sten\.nuget\packages\microsoft.netcore.app.runtime.win-x64\8.0.13\runtimes\win-x64\native\coreclr.dll">
+      <PackagePath>coreclr.dll</PackagePath>
+      <Modified>2025-01-16T18:52:46.000</Modified>
+    </AppxPackagedFile>
+    <AppxPackagedFile Include="C:\Users\Sten\.nuget\packages\microsoft.netcore.app.runtime.win-x64\8.0.13\runtimes\win-x64\native\createdump.exe">
+      <PackagePath>createdump.exe</PackagePath>
+      <Modified>2025-01-16T18:57:20.000</Modified>
+    </AppxPackagedFile>
+    <AppxPackagedFile Include="C:\Users\Sten\.nuget\packages\microsoft.netcore.app.runtime.win-x64\8.0.13\runtimes\win-x64\native\hostfxr.dll">
+      <PackagePath>hostfxr.dll</PackagePath>
+      <Modified>2025-01-16T19:07:38.000</Modified>
+    </AppxPackagedFile>
+    <AppxPackagedFile Include="C:\Users\Sten\.nuget\packages\microsoft.netcore.app.runtime.win-x64\8.0.13\runtimes\win-x64\native\hostpolicy.dll">
+      <PackagePath>hostpolicy.dll</PackagePath>
+      <Modified>2025-01-16T19:07:40.000</Modified>
+    </AppxPackagedFile>
+    <AppxPackagedFile Include="C:\Users\Sten\.nuget\packages\microsoft.netcore.app.runtime.win-x64\8.0.13\runtimes\win-x64\native\mscordaccore.dll">
+      <PackagePath>mscordaccore.dll</PackagePath>
+      <Modified>2025-01-16T19:00:24.000</Modified>
+    </AppxPackagedFile>
+    <AppxPackagedFile Include="C:\Users\Sten\.nuget\packages\microsoft.netcore.app.runtime.win-x64\8.0.13\runtimes\win-x64\native\mscordaccore_amd64_amd64_8.0.1325.6609.dll">
+      <PackagePath>mscordaccore_amd64_amd64_8.0.1325.6609.dll</PackagePath>
+      <Modified>2025-01-16T19:00:24.000</Modified>
+    </AppxPackagedFile>
+    <AppxPackagedFile Include="C:\Users\Sten\.nuget\packages\microsoft.netcore.app.runtime.win-x64\8.0.13\runtimes\win-x64\native\mscordbi.dll">
+      <PackagePath>mscordbi.dll</PackagePath>
+      <Modified>2025-01-16T18:59:54.000</Modified>
+    </AppxPackagedFile>
+    <AppxPackagedFile Include="C:\Users\Sten\.nuget\packages\microsoft.netcore.app.runtime.win-x64\8.0.13\runtimes\win-x64\native\mscorrc.dll">
+      <PackagePath>mscorrc.dll</PackagePath>
+      <Modified>2025-01-16T18:57:24.000</Modified>
+    </AppxPackagedFile>
+    <AppxPackagedFile Include="C:\Users\Sten\.nuget\packages\microsoft.netcore.app.runtime.win-x64\8.0.13\runtimes\win-x64\native\msquic.dll">
+      <PackagePath>msquic.dll</PackagePath>
+      <Modified>2024-03-12T16:41:32.000</Modified>
+    </AppxPackagedFile>
+    <AppxPackagedFile Include="C:\Users\Sten\.nuget\packages\microsoft.web.webview2\1.0.2903.40\runtimes\win-x64\native\WebView2Loader.dll">
+      <PackagePath>WebView2Loader.dll</PackagePath>
+      <Modified>2024-11-10T08:57:38.000</Modified>
+    </AppxPackagedFile>
+    <AppxPackagedFile Include="C:\Users\Sten\.nuget\packages\microsoft.windowsappsdk\1.7.250310001\runtimes\win-x64\native\Microsoft.Windows.ApplicationModel.Background.UniversalBGTask.dll">
+      <PackagePath>Microsoft.Windows.ApplicationModel.Background.UniversalBGTask.dll</PackagePath>
+      <Modified>2025-03-06T18:41:20.000</Modified>
+    </AppxPackagedFile>
+    <AppxPackagedFile Include="C:\Users\Sten\.nuget\packages\microsoft.windowsappsdk\1.7.250310001\runtimes\win-x64\native\Microsoft.WindowsAppRuntime.Bootstrap.dll">
+      <PackagePath>Microsoft.WindowsAppRuntime.Bootstrap.dll</PackagePath>
+      <Modified>2025-03-06T18:41:20.000</Modified>
+    </AppxPackagedFile>
+    <AppxPackagedFile Include="C:\Users\Sten\.nuget\packages\microsoft.web.webview2\1.0.2903.40\runtimes\win-x64\native_uap\Microsoft.Web.WebView2.Core.dll">
+      <PackagePath>Microsoft.Web.WebView2.Core.dll</PackagePath>
+      <Modified>2024-11-10T08:58:00.000</Modified>
+    </AppxPackagedFile>
+    <AppxPackagedFile Include="C:\Users\Sten\source\repos\WinUI_V3\WinUI_V3\obj\x64\Release\net8.0-windows10.0.19041.0\win-x64\linked\System.ComponentModel.dll">
+      <PackagePath>System.ComponentModel.dll</PackagePath>
+      <Modified>2025-03-20T18:22:35.771</Modified>
+    </AppxPackagedFile>
+    <AppxPackagedFile Include="C:\Users\Sten\source\repos\WinUI_V3\WinUI_V3\obj\x64\Release\net8.0-windows10.0.19041.0\win-x64\R2R\Microsoft.InteractiveExperiences.Projection.dll">
+      <PackagePath>Microsoft.InteractiveExperiences.Projection.dll</PackagePath>
+      <Modified>2025-03-20T18:22:37.106</Modified>
+    </AppxPackagedFile>
+    <AppxPackagedFile Include="C:\Users\Sten\source\repos\WinUI_V3\WinUI_V3\obj\x64\Release\net8.0-windows10.0.19041.0\win-x64\R2R\Microsoft.WinUI.dll">
+      <PackagePath>Microsoft.WinUI.dll</PackagePath>
+      <Modified>2025-03-20T18:22:37.256</Modified>
+    </AppxPackagedFile>
+    <AppxPackagedFile Include="C:\Users\Sten\source\repos\WinUI_V3\WinUI_V3\obj\x64\Release\net8.0-windows10.0.19041.0\win-x64\R2R\WinUI_V3.dll">
+      <PackagePath>WinUI_V3.dll</PackagePath>
+      <Modified>2025-03-20T18:22:37.340</Modified>
+    </AppxPackagedFile>
+    <AppxPackagedFile Include="C:\Users\Sten\source\repos\WinUI_V3\WinUI_V3\obj\x64\Release\net8.0-windows10.0.19041.0\win-x64\R2R\System.Collections.Concurrent.dll">
+      <PackagePath>System.Collections.Concurrent.dll</PackagePath>
+      <Modified>2025-03-20T18:22:37.404</Modified>
+    </AppxPackagedFile>
+    <AppxPackagedFile Include="C:\Users\Sten\source\repos\WinUI_V3\WinUI_V3\obj\x64\Release\net8.0-windows10.0.19041.0\win-x64\R2R\System.Collections.Immutable.dll">
+      <PackagePath>System.Collections.Immutable.dll</PackagePath>
+      <Modified>2025-03-20T18:22:37.477</Modified>
+    </AppxPackagedFile>
+    <AppxPackagedFile Include="C:\Users\Sten\source\repos\WinUI_V3\WinUI_V3\obj\x64\Release\net8.0-windows10.0.19041.0\win-x64\R2R\System.Collections.dll">
+      <PackagePath>System.Collections.dll</PackagePath>
+      <Modified>2025-03-20T18:22:37.541</Modified>
+    </AppxPackagedFile>
+    <AppxPackagedFile Include="C:\Users\Sten\source\repos\WinUI_V3\WinUI_V3\obj\x64\Release\net8.0-windows10.0.19041.0\win-x64\R2R\System.Diagnostics.StackTrace.dll">
+      <PackagePath>System.Diagnostics.StackTrace.dll</PackagePath>
+      <Modified>2025-03-20T18:22:37.614</Modified>
+    </AppxPackagedFile>
+    <AppxPackagedFile Include="C:\Users\Sten\source\repos\WinUI_V3\WinUI_V3\obj\x64\Release\net8.0-windows10.0.19041.0\win-x64\R2R\System.IO.Compression.dll">
+      <PackagePath>System.IO.Compression.dll</PackagePath>
+      <Modified>2025-03-20T18:22:37.682</Modified>
+    </AppxPackagedFile>
+    <AppxPackagedFile Include="C:\Users\Sten\source\repos\WinUI_V3\WinUI_V3\obj\x64\Release\net8.0-windows10.0.19041.0\win-x64\R2R\System.IO.MemoryMappedFiles.dll">
+      <PackagePath>System.IO.MemoryMappedFiles.dll</PackagePath>
+      <Modified>2025-03-20T18:22:37.757</Modified>
+    </AppxPackagedFile>
+    <AppxPackagedFile Include="C:\Users\Sten\source\repos\WinUI_V3\WinUI_V3\obj\x64\Release\net8.0-windows10.0.19041.0\win-x64\R2R\System.Linq.Expressions.dll">
+      <PackagePath>System.Linq.Expressions.dll</PackagePath>
+      <Modified>2025-03-20T18:22:37.821</Modified>
+    </AppxPackagedFile>
+    <AppxPackagedFile Include="C:\Users\Sten\source\repos\WinUI_V3\WinUI_V3\obj\x64\Release\net8.0-windows10.0.19041.0\win-x64\R2R\System.Linq.dll">
+      <PackagePath>System.Linq.dll</PackagePath>
+      <Modified>2025-03-20T18:22:37.880</Modified>
+    </AppxPackagedFile>
+    <AppxPackagedFile Include="C:\Users\Sten\source\repos\WinUI_V3\WinUI_V3\obj\x64\Release\net8.0-windows10.0.19041.0\win-x64\R2R\System.ObjectModel.dll">
+      <PackagePath>System.ObjectModel.dll</PackagePath>
+      <Modified>2025-03-20T18:22:37.942</Modified>
+    </AppxPackagedFile>
+    <AppxPackagedFile Include="C:\Users\Sten\source\repos\WinUI_V3\WinUI_V3\obj\x64\Release\net8.0-windows10.0.19041.0\win-x64\R2R\System.Private.CoreLib.dll">
+      <PackagePath>System.Private.CoreLib.dll</PackagePath>
+      <Modified>2025-03-20T18:22:38.830</Modified>
+    </AppxPackagedFile>
+    <AppxPackagedFile Include="C:\Users\Sten\source\repos\WinUI_V3\WinUI_V3\obj\x64\Release\net8.0-windows10.0.19041.0\win-x64\R2R\System.Private.Uri.dll">
+      <PackagePath>System.Private.Uri.dll</PackagePath>
+      <Modified>2025-03-20T18:22:38.925</Modified>
+    </AppxPackagedFile>
+    <AppxPackagedFile Include="C:\Users\Sten\source\repos\WinUI_V3\WinUI_V3\obj\x64\Release\net8.0-windows10.0.19041.0\win-x64\R2R\System.Reflection.Metadata.dll">
+      <PackagePath>System.Reflection.Metadata.dll</PackagePath>
+      <Modified>2025-03-20T18:22:39.018</Modified>
+    </AppxPackagedFile>
+    <AppxPackagedFile Include="C:\Users\Sten\source\repos\WinUI_V3\WinUI_V3\obj\x64\Release\net8.0-windows10.0.19041.0\win-x64\R2R\System.Runtime.InteropServices.dll">
+      <PackagePath>System.Runtime.InteropServices.dll</PackagePath>
+      <Modified>2025-03-20T18:22:39.089</Modified>
+    </AppxPackagedFile>
+    <AppxPackagedFile Include="C:\Users\Sten\source\repos\WinUI_V3\WinUI_V3\obj\x64\Release\net8.0-windows10.0.19041.0\win-x64\R2R\System.Security.Cryptography.dll">
+      <PackagePath>System.Security.Cryptography.dll</PackagePath>
+      <Modified>2025-03-20T18:22:39.153</Modified>
+    </AppxPackagedFile>
+    <AppxPackagedFile Include="C:\Users\Sten\source\repos\WinUI_V3\WinUI_V3\obj\x64\Release\net8.0-windows10.0.19041.0\win-x64\R2R\Microsoft.Windows.SDK.NET.dll">
+      <PackagePath>Microsoft.Windows.SDK.NET.dll</PackagePath>
+      <Modified>2025-03-20T18:22:39.236</Modified>
+    </AppxPackagedFile>
+    <AppxPackagedFile Include="C:\Users\Sten\source\repos\WinUI_V3\WinUI_V3\obj\x64\Release\net8.0-windows10.0.19041.0\win-x64\R2R\WinRT.Runtime.dll">
+      <PackagePath>WinRT.Runtime.dll</PackagePath>
+      <Modified>2025-03-20T18:22:39.477</Modified>
+    </AppxPackagedFile>
+    <AppxPackagedFile Include="C:\Users\Sten\source\repos\WinUI_V3\WinUI_V3\obj\x64\Release\net8.0-windows10.0.19041.0\win-x64\WinUI_V3.deps.json">
+      <PackagePath>WinUI_V3.deps.json</PackagePath>
+      <Modified>2025-03-20T18:22:39.503</Modified>
+    </AppxPackagedFile>
+    <AppxPackagedFile Include="C:\Users\Sten\source\repos\WinUI_V3\WinUI_V3\Assets\LockScreenLogo.scale-200.png">
+      <PackagePath>Assets\LockScreenLogo.scale-200.png</PackagePath>
+      <Modified>2025-03-04T14:55:48.827</Modified>
+    </AppxPackagedFile>
+    <AppxPackagedFile Include="C:\Users\Sten\source\repos\WinUI_V3\WinUI_V3\Assets\SplashScreen.scale-200.png">
+      <PackagePath>Assets\SplashScreen.scale-200.png</PackagePath>
+      <Modified>2025-03-04T14:55:48.828</Modified>
+    </AppxPackagedFile>
+    <AppxPackagedFile Include="C:\Users\Sten\source\repos\WinUI_V3\WinUI_V3\Assets\Square150x150Logo.scale-200.png">
+      <PackagePath>Assets\Square150x150Logo.scale-200.png</PackagePath>
+      <Modified>2025-03-04T14:55:48.828</Modified>
+    </AppxPackagedFile>
+    <AppxPackagedFile Include="C:\Users\Sten\source\repos\WinUI_V3\WinUI_V3\Assets\Square44x44Logo.scale-200.png">
+      <PackagePath>Assets\Square44x44Logo.scale-200.png</PackagePath>
+      <Modified>2025-03-04T14:55:48.829</Modified>
+    </AppxPackagedFile>
+    <AppxPackagedFile Include="C:\Users\Sten\source\repos\WinUI_V3\WinUI_V3\Assets\Square44x44Logo.targetsize-24_altform-unplated.png">
+      <PackagePath>Assets\Square44x44Logo.targetsize-24_altform-unplated.png</PackagePath>
+      <Modified>2025-03-04T14:55:48.830</Modified>
+    </AppxPackagedFile>
+    <AppxPackagedFile Include="C:\Users\Sten\source\repos\WinUI_V3\WinUI_V3\Assets\StoreLogo.png">
+      <PackagePath>Assets\StoreLogo.png</PackagePath>
+      <Modified>2025-03-04T14:55:48.830</Modified>
+    </AppxPackagedFile>
+    <AppxPackagedFile Include="C:\Users\Sten\source\repos\WinUI_V3\WinUI_V3\Assets\Wide310x150Logo.scale-200.png">
+      <PackagePath>Assets\Wide310x150Logo.scale-200.png</PackagePath>
+      <Modified>2025-03-04T14:55:48.831</Modified>
+    </AppxPackagedFile>
+  </ItemGroup>
+  <ItemGroup>
+    <ResolvedSDKReference Include="C:\Users\Sten\.nuget\packages\microsoft.windowsappsdk\1.7.250310001\buildTransitive\..\tools\MSIX\win10-x86\Microsoft.WindowsAppRuntime.1.7.msix">
+      <Name>Microsoft.WindowsAppRuntime.1.7</Name>
+      <Version>7000.435.154.0</Version>
+      <Architecture>x86</Architecture>
+      <FrameworkIdentity>Name = Microsoft.WindowsAppRuntime.1.7, MinVersion = 7000.435.154.0, Publisher = %27CN=Microsoft Corporation, O=Microsoft Corporation, L=Redmond, S=Washington, C=US%27</FrameworkIdentity>
+      <AppxLocation>C:\Users\Sten\.nuget\packages\microsoft.windowsappsdk\1.7.250310001\buildTransitive\..\tools\MSIX\win10-x86\Microsoft.WindowsAppRuntime.1.7.msix</AppxLocation>
+      <MoreInfo>
+      </MoreInfo>
+    </ResolvedSDKReference>
+    <ResolvedSDKReference Include="C:\Users\Sten\.nuget\packages\microsoft.windowsappsdk\1.7.250310001\buildTransitive\..\tools\MSIX\win10-x86\Microsoft.WindowsAppRuntime.1.7.msix">
+      <Name>Microsoft.WindowsAppRuntime.1.7</Name>
+      <Version>7000.435.154.0</Version>
+      <Architecture>win32</Architecture>
+      <FrameworkIdentity>Name = Microsoft.WindowsAppRuntime.1.7, MinVersion = 7000.435.154.0, Publisher = %27CN=Microsoft Corporation, O=Microsoft Corporation, L=Redmond, S=Washington, C=US%27</FrameworkIdentity>
+      <AppxLocation>C:\Users\Sten\.nuget\packages\microsoft.windowsappsdk\1.7.250310001\buildTransitive\..\tools\MSIX\win10-x86\Microsoft.WindowsAppRuntime.1.7.msix</AppxLocation>
+      <MoreInfo>
+      </MoreInfo>
+    </ResolvedSDKReference>
+    <ResolvedSDKReference Include="C:\Users\Sten\.nuget\packages\microsoft.windowsappsdk\1.7.250310001\buildTransitive\..\tools\MSIX\win10-x64\Microsoft.WindowsAppRuntime.1.7.msix">
+      <Name>Microsoft.WindowsAppRuntime.1.7</Name>
+      <Version>7000.435.154.0</Version>
+      <Architecture>x64</Architecture>
+      <FrameworkIdentity>Name = Microsoft.WindowsAppRuntime.1.7, MinVersion = 7000.435.154.0, Publisher = %27CN=Microsoft Corporation, O=Microsoft Corporation, L=Redmond, S=Washington, C=US%27</FrameworkIdentity>
+      <AppxLocation>C:\Users\Sten\.nuget\packages\microsoft.windowsappsdk\1.7.250310001\buildTransitive\..\tools\MSIX\win10-x64\Microsoft.WindowsAppRuntime.1.7.msix</AppxLocation>
+      <MoreInfo>
+      </MoreInfo>
+    </ResolvedSDKReference>
+    <ResolvedSDKReference Include="C:\Users\Sten\.nuget\packages\microsoft.windowsappsdk\1.7.250310001\buildTransitive\..\tools\MSIX\win10-arm64\Microsoft.WindowsAppRuntime.1.7.msix">
+      <Name>Microsoft.WindowsAppRuntime.1.7</Name>
+      <Version>7000.435.154.0</Version>
+      <Architecture>arm64</Architecture>
+      <FrameworkIdentity>Name = Microsoft.WindowsAppRuntime.1.7, MinVersion = 7000.435.154.0, Publisher = %27CN=Microsoft Corporation, O=Microsoft Corporation, L=Redmond, S=Washington, C=US%27</FrameworkIdentity>
+      <AppxLocation>C:\Users\Sten\.nuget\packages\microsoft.windowsappsdk\1.7.250310001\buildTransitive\..\tools\MSIX\win10-arm64\Microsoft.WindowsAppRuntime.1.7.msix</AppxLocation>
+      <MoreInfo>
+      </MoreInfo>
+    </ResolvedSDKReference>
+  </ItemGroup>
+</Project>
