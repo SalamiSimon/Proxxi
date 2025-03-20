@@ -14,8 +14,10 @@
         </Grid.RowDefinitions>
 
         <!-- Title Bar -->
-        <Grid Grid.Row="0" Background="Transparent">
-            <TextBlock Text="Settings" 
+        <Grid x:ConnectionId='2' x:Name="TitleBarArea" Grid.Row="0" Background="Transparent">
+            <TextBlock Text="Response modifier for Proxifier" 
+                       FontSize="18"
+                       FontWeight="SemiBold"
                        Margin="12,8,0,8"/>
         </Grid>
 
@@ -27,12 +29,15 @@
             </Grid.ColumnDefinitions>
 
             <!-- Navigation View -->
-            <NavigationView x:ConnectionId='2' x:Name="NavView"
+            <NavigationView x:ConnectionId='3' x:Name="NavView"
                            Grid.Column="0"
                            PaneDisplayMode="Left"
                            IsSettingsVisible="False"
                            IsBackButtonVisible="Collapsed"
-                           OpenPaneLength="250"
+                           OpenPaneLength="150"
+                           CompactPaneLength="48"
+                           IsPaneToggleButtonVisible="False"
+                                                                      
                            Background="{ThemeResource CardBackgroundFillColorDefaultBrush}">
                 <NavigationView.MenuItems>
                     <NavigationViewItem Content="Targets" Tag="targets">
@@ -54,7 +59,7 @@
             </NavigationView>
 
             <!-- Content Frame -->
-            <Frame x:ConnectionId='3' x:Name="ContentFrame" 
+            <Frame x:ConnectionId='4' x:Name="ContentFrame" 
                    Grid.Column="1" 
                    Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"/>
         </Grid>

@@ -29,7 +29,7 @@ namespace WinUI_V3
             this.InitializeComponent();
             Title = "Response modifier for Proxifier";
             ExtendsContentIntoTitleBar = true;
-            SetTitleBar(null);
+            SetTitleBar(TitleBarArea);
 
             // Set the window size
             var windowHandle = WinRT.Interop.WindowNative.GetWindowHandle(this);
@@ -38,30 +38,56 @@ namespace WinUI_V3
             appWindow.Resize(new Windows.Graphics.SizeInt32 { Width = 800, Height = 600 });
 
             // Set up navigation
-            NavView.ItemInvoked += NavView_ItemInvoked;
+            NavView.SelectionChanged += NavView_SelectionChanged;
             
-            // Navigate to the first page
+            // Navigate to the first page and select the first item
             ContentFrame.Navigate(typeof(TargetsPage));
+            NavView.SelectedItem = NavView.MenuItems[0]; // Select the first item by default
         }
 
-        private void NavView_ItemInvoked(NavigationView sender, NavigationViewItemInvokedEventArgs args)
+        private void NavView_SelectionChanged(NavigationView sender, NavigationViewSelectionChangedEventArgs args)
         {
-            if (args.IsSettingsInvoked)
+            if (args.IsSettingsSelected)
                 return;
 
-            var tag = args.InvokedItemContainer?.Tag?.ToString();
-            switch (tag)
+            var selectedItem = args.SelectedItem as NavigationViewItem;
+            if (selectedItem != null)
             {
-                case "targets":
-                    ContentFrame.Navigate(typeof(TargetsPage));
-                    break;
-                case "settings":
-                    ContentFrame.Navigate(typeof(SettingsPage));
-                    break;
-                case "info":
-                    ContentFrame.Navigate(typeof(InfoPage));
-                    break;
+                var tag = selectedItem.Tag?.ToString();
+                switch (tag)
+                {
+                    case "targets":
+                        ContentFrame.Navigate(typeof(TargetsPage));
+                        break;
+                    case "settings":
+                        ContentFrame.Navigate(typeof(SettingsPage));
+                        break;
+                    case "info":
+                        ContentFrame.Navigate(typeof(InfoPage));
+                        break;
+                }
             }
+        }
+
+        private void NavView_PaneClosing(NavigationView sender, NavigationViewPaneClosingEventArgs args)
+        {
+            // Update layout for closed pane - content now takes full width
+            UpdateContentMargins();
+        }
+
+        private void NavView_PaneOpening(NavigationView sender, object args)
+        {
+            // Update layout for open pane
+            UpdateContentMargins();
+        }
+
+        private void UpdateContentMargins()
+        {
+            // This method could be used to adjust any additional margins or layout properties
+            // if needed, depending on the pane state
+            
+            // For most cases, WinUI's NavigationView handles this automatically
+            // but you can add custom adjustments here if necessary
         }
     }
 }

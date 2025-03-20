@@ -271,3 +271,4 @@ C:\Users\Sten\source\repos\WinUI_V3\WinUI_V3\obj\x64\Debug\net8.0-windows10.0.19
 C:\Users\Sten\source\repos\WinUI_V3\WinUI_V3\obj\x64\Debug\net8.0-windows10.0.19041.0\win-x64\qualifiers.txt.intermediate
 C:\Users\Sten\source\repos\WinUI_V3\WinUI_V3\obj\x64\Debug\net8.0-windows10.0.19041.0\win-x64\MultipleQualifiersPerDimensionFound.txt
 C:\Users\Sten\source\repos\WinUI_V3\WinUI_V3\obj\x64\Debug\net8.0-windows10.0.19041.0\win-x64\ProjectArchitectures.txt
+C:\Users\Sten\source\repos\WinUI_V3\WinUI_V3\obj\x64\Debug\net8.0-windows10.0.19041.0\win-x64\WinUI_V3.sourcelink.json
