@@ -47,6 +47,8 @@
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="Auto"/>
                             <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
                         
                         <!-- Target URL -->
@@ -54,12 +56,49 @@
                                 Background="{ThemeResource CardBackgroundFillColorSecondaryBrush}" 
                                 CornerRadius="4" 
                                 Padding="12,8">
-                            <TextBlock Text="{Binding TargetUrl}" 
-                                       VerticalAlignment="Center"/>
+                            <StackPanel>
+                                <TextBlock Text="{Binding TargetUrl}" 
+                                       VerticalAlignment="Center" 
+                                       TextWrapping="Wrap"/>
+                                <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                                    <TextBlock Text="Type: " 
+                                               FontSize="12" 
+                                               Opacity="0.7"/>
+                                    <TextBlock Text="{Binding IsStaticResponse, Converter={StaticResource BoolToStringConverter}, ConverterParameter='Static|Dynamic'}" 
+                                               FontSize="12" 
+                                               Opacity="0.7" 
+                                               Margin="4,0,0,0"/>
+                                    
+                                    <TextBlock Text=" | Status: " 
+                                               FontSize="12" 
+                                               Opacity="0.7" 
+                                               Margin="8,0,0,0"/>
+                                    <TextBlock Text="{Binding HttpStatus, TargetNullValue='Any'}" 
+                                               FontSize="12" 
+                                               Opacity="0.7" 
+                                               Margin="4,0,0,0"/>
+                                    
+                                    <TextBlock Text="{Binding IsEnabled, Converter={StaticResource BoolToStringConverter}, ConverterParameter='Enabled|Disabled'}" 
+                                               Foreground="{Binding IsEnabled, Converter={StaticResource BoolToColorConverter}, ConverterParameter='Green|Red'}" 
+                                               FontSize="12" 
+                                               Margin="12,0,0,0"/>
+                                </StackPanel>
+                            </StackPanel>
                         </Border>
                         
-                        <!-- Edit Button -->
+                        <!-- Toggle Enable/Disable Button -->
                         <Button Grid.Column="1" 
+                                Margin="8,0,0,0" 
+                                ToolTipService.ToolTip="{Binding IsEnabled, Converter={StaticResource BoolToStringConverter}, ConverterParameter='Disable|Enable'}" 
+                                Tag="{Binding}"
+                                Click="ToggleEnableButton_Click">
+                            <FontIcon Glyph="{Binding IsEnabled, Converter={StaticResource BoolToStringConverter}, ConverterParameter='&#xE73D;|&#xE73E;'}" 
+                                      Foreground="{Binding IsEnabled, Converter={StaticResource BoolToColorConverter}, ConverterParameter='Green|Red'}" 
+                                      FontSize="16"/>
+                        </Button>
+                        
+                        <!-- Edit Button -->
+                        <Button Grid.Column="2" 
                                 Margin="8,0,0,0" 
                                 ToolTipService.ToolTip="Edit" 
                                 Tag="{Binding}"
@@ -68,7 +107,7 @@
                         </Button>
                         
                         <!-- Delete Button -->
-                        <Button Grid.Column="2" 
+                        <Button Grid.Column="3" 
                                 Margin="8,0,0,0" 
                                 ToolTipService.ToolTip="Delete" 
                                 Tag="{Binding}"
@@ -98,6 +137,7 @@
                 <StackPanel Spacing="8">
                     <TextBlock Text="HTTP Status Response:" FontWeight="SemiBold"/>
                     <ComboBox x:Name="HttpStatusComboBox" HorizontalAlignment="Stretch">
+                        <ComboBoxItem Content="Any Status" Tag="Any"/>
                         <ComboBoxItem Content="200 - OK" Tag="200"/>
                         <ComboBoxItem Content="201 - Created" Tag="201"/>
                         <ComboBoxItem Content="204 - No Content" Tag="204"/>
