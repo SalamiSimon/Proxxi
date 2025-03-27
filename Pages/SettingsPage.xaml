@@ -7,32 +7,154 @@
     mc:Ignorable="d"
     Style="{StaticResource SettingsPageStyle}">
 
-    <ScrollViewer>
-        <StackPanel Spacing="32">
-            <TextBlock Text="Settings"/>
-            
-            <!-- General Settings -->
-            <StackPanel Style="{StaticResource SettingsGroupStyle}">
-                <TextBlock Text="General" Style="{StaticResource SettingsTitleStyle}"/>
-                <Button Content="Appearance" Style="{StaticResource SettingsButtonStyle}"/>
-                <Button Content="Notifications" Style="{StaticResource SettingsButtonStyle}"/>
-                <Button Content="Language &amp; Region" Style="{StaticResource SettingsButtonStyle}"/>
+    <ScrollViewer Padding="20,0,20,20">
+        <StackPanel Spacing="20" MaxWidth="1400" HorizontalAlignment="Center">
+            <!-- Settings Header -->
+            <TextBlock Text="Settings" 
+                       Style="{StaticResource TitleTextBlockStyle}" 
+                       FontSize="28" 
+                       FontWeight="SemiBold" 
+                       HorizontalAlignment="Center"
+                       Margin="0,20,0,10"/>
+
+            <!-- Proxy Settings -->
+            <StackPanel Style="{StaticResource SettingsGroupStyle}" Spacing="16" HorizontalAlignment="Stretch">
+                <TextBlock Text="Proxy Server" 
+                           Style="{StaticResource SubtitleTextBlockStyle}" 
+                           HorizontalAlignment="Center"
+                           Margin="0,0,0,8"/>
+                
+                <Rectangle Height="1" Fill="{ThemeResource DividerStrokeColorDefaultBrush}" Margin="0,0,0,8"/>
+                
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="350"/>
+                        <ColumnDefinition Width="Auto" MinWidth="120"/>
+                    </Grid.ColumnDefinitions>
+                    
+                    <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                        <TextBlock Text="Proxy Server Status" 
+                                   Style="{StaticResource BodyStrongTextBlockStyle}"/>
+                        <TextBlock Text="Enable or disable the proxy server" 
+                                   Style="{StaticResource CaptionTextBlockStyle}" 
+                                   Opacity="0.7"/>
+                    </StackPanel>
+                    
+                    <ToggleSwitch Grid.Column="1" 
+                                 x:Name="ProxyToggle" 
+                                 IsOn="False"
+                                 Toggled="ProxyToggle_Toggled"/>
+                </Grid>
+                
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto" MinWidth="120"/>
+                    </Grid.ColumnDefinitions>
+                    
+                    <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                        <TextBlock Text="Auto-start on Boot" 
+                                   Style="{StaticResource BodyStrongTextBlockStyle}"/>
+                        <TextBlock Text="Add the MITM core as a startup item" 
+                                   Style="{StaticResource CaptionTextBlockStyle}" 
+                                   Opacity="0.7"/>
+                    </StackPanel>
+                    
+                    <Button Grid.Column="1" 
+                            x:Name="AutoStartButton" 
+                            Content="Configure" 
+                            Click="AutoStartButton_Click"
+                            HorizontalAlignment="Right"
+                            MinWidth="100"/>
+                </Grid>
             </StackPanel>
 
-            <!-- Privacy &amp; Security -->
-            <StackPanel Style="{StaticResource SettingsGroupStyle}">
-                <TextBlock Text="Privacy &amp; Security" Style="{StaticResource SettingsTitleStyle}"/>
-                <Button Content="Data Collection" Style="{StaticResource SettingsButtonStyle}"/>
-                <Button Content="Security Settings" Style="{StaticResource SettingsButtonStyle}"/>
-                <Button Content="Permissions" Style="{StaticResource SettingsButtonStyle}"/>
+            <!-- Target Management -->
+            <StackPanel Style="{StaticResource SettingsGroupStyle}" Spacing="16" HorizontalAlignment="Stretch">
+                <TextBlock Text="Target Management" 
+                           Style="{StaticResource SubtitleTextBlockStyle}" 
+                           HorizontalAlignment="Center"
+                           Margin="0,0,0,8"/>
+                
+                <Rectangle Height="1" Fill="{ThemeResource DividerStrokeColorDefaultBrush}" Margin="0,0,0,8"/>
+                
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto" MinWidth="120"/>
+                    </Grid.ColumnDefinitions>
+                    
+                    <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                        <TextBlock Text="Export All Targets" 
+                                   Style="{StaticResource BodyStrongTextBlockStyle}"/>
+                        <TextBlock Text="Export all targets as a Proxifier import file" 
+                                   Style="{StaticResource CaptionTextBlockStyle}" 
+                                   Opacity="0.7"/>
+                    </StackPanel>
+                    
+                    <Button Grid.Column="1" 
+                            x:Name="ExportTargetsButton" 
+                            Content="Export" 
+                            Click="ExportTargetsButton_Click"
+                            HorizontalAlignment="Right"
+                            MinWidth="100"/>
+                </Grid>
+                
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto" MinWidth="120"/>
+                    </Grid.ColumnDefinitions>
+                    
+                    <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                        <TextBlock Text="Delete All Targets" 
+                                   Style="{StaticResource BodyStrongTextBlockStyle}"/>
+                        <TextBlock Text="Delete all targets from the database" 
+                                   Style="{StaticResource CaptionTextBlockStyle}" 
+                                   Opacity="0.7"/>
+                    </StackPanel>
+                    
+                    <Button Grid.Column="1" 
+                            x:Name="DeleteAllTargetsButton" 
+                            Content="Delete All" 
+                            Click="DeleteAllTargetsButton_Click"
+                            Style="{StaticResource AccentButtonStyle}"
+                            Background="DarkRed"
+                            HorizontalAlignment="Right"
+                            MinWidth="100"/>
+                </Grid>
             </StackPanel>
 
             <!-- Updates -->
-            <StackPanel Style="{StaticResource SettingsGroupStyle}">
-                <TextBlock Text="Updates" Style="{StaticResource SettingsTitleStyle}"/>
-                <Button Content="Check for Updates" Style="{StaticResource SettingsButtonStyle}"/>
-                <Button Content="Update History" Style="{StaticResource SettingsButtonStyle}"/>
-                <Button Content="Advanced Update Options" Style="{StaticResource SettingsButtonStyle}"/>
+            <StackPanel Style="{StaticResource SettingsGroupStyle}" Spacing="16" HorizontalAlignment="Stretch">
+                <TextBlock Text="Updates" 
+                           Style="{StaticResource SubtitleTextBlockStyle}" 
+                           HorizontalAlignment="Center"
+                           Margin="0,0,0,8"/>
+                
+                <Rectangle Height="1" Fill="{ThemeResource DividerStrokeColorDefaultBrush}" Margin="0,0,0,8"/>
+                
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto" MinWidth="120"/>
+                    </Grid.ColumnDefinitions>
+                    
+                    <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                        <TextBlock Text="Check for Updates" 
+                                   Style="{StaticResource BodyStrongTextBlockStyle}"/>
+                        <TextBlock Text="Check for new versions" 
+                                   Style="{StaticResource CaptionTextBlockStyle}" 
+                                   Opacity="0.7"/>
+                    </StackPanel>
+                    
+                    <Button Grid.Column="1" 
+                            x:Name="CheckUpdatesButton" 
+                            Content="Check Now" 
+                            Click="CheckUpdatesButton_Click"
+                            HorizontalAlignment="Right"
+                            MinWidth="100"/>
+                </Grid>
             </StackPanel>
         </StackPanel>
     </ScrollViewer>

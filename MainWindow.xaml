@@ -38,7 +38,9 @@
                            CompactPaneLength="48"
                            IsPaneToggleButtonVisible="False"
                            SelectionChanged="NavView_SelectionChanged"
-                           Background="{ThemeResource CardBackgroundFillColorDefaultBrush}">
+                           Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                           BorderBrush="DarkRed"
+                           BorderThickness="10,10,10,10">
                 <NavigationView.MenuItems>
                     <NavigationViewItem Content="Targets" Tag="targets">
                         <NavigationViewItem.Icon>
@@ -58,10 +60,10 @@
                 </NavigationView.MenuItems>
             </NavigationView>
 
-            <!-- Content Frame -->
+            <!-- Content Frame  ControlAltFillColorTransparentBrush  -->
             <Frame x:Name="ContentFrame" 
                    Grid.Column="1" 
-                   Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"/>
+                   Background="{ThemeResource LayerOnAcrylicFillColorDefaultBrush   }"/>
         </Grid>
     </Grid>
 </Window>

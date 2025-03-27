@@ -7,33 +7,70 @@
     mc:Ignorable="d"
     Style="{StaticResource SettingsPageStyle}">
 
-    <ScrollViewer>
-        <StackPanel Spacing="32">
-            <TextBlock Text="Info"/>
+    <ScrollViewer Padding="20,0,20,20">
+        <StackPanel Spacing="24" MaxWidth="600" HorizontalAlignment="Center">
+            <!-- App Title and Version -->
+            <StackPanel Spacing="8" Margin="0,40,0,20">
+                <TextBlock Text="Response Modifier" 
+                           FontSize="32" 
+                           FontWeight="SemiBold" 
+                           HorizontalAlignment="Center"/>
+                <TextBlock x:Name="VersionText" 
+                           Text="Version 1.0.0" 
+                           FontSize="16" 
+                           Opacity="0.7" 
+                           HorizontalAlignment="Center"/>
+            </StackPanel>
             
-            <!-- About -->
-            <StackPanel Style="{StaticResource SettingsGroupStyle}">
-                <TextBlock Text="About" Style="{StaticResource SettingsTitleStyle}"/>
-                <Button Content="Version Information" Style="{StaticResource SettingsButtonStyle}"/>
-                <Button Content="License Information" Style="{StaticResource SettingsButtonStyle}"/>
-                <Button Content="Terms of Service" Style="{StaticResource SettingsButtonStyle}"/>
+            <!-- Author Info -->
+            <StackPanel Spacing="12" HorizontalAlignment="Center" Margin="0,0,0,24">
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                    <FontIcon FontFamily="{StaticResource SymbolThemeFontFamily}" 
+                              Glyph="&#xE946;" 
+                              FontSize="24" 
+                              Margin="0,0,8,0"
+                              VerticalAlignment="Center"/>
+                    <TextBlock Text="SalamiSimon" 
+                               FontSize="22" 
+                               VerticalAlignment="Center"/>
+                </StackPanel>
+                <TextBlock Text="https://github.com/SalamiSimon" 
+                           Opacity="0.7" 
+                           HorizontalAlignment="Center"/>
             </StackPanel>
-
-            <!-- Support -->
-            <StackPanel Style="{StaticResource SettingsGroupStyle}">
-                <TextBlock Text="Support" Style="{StaticResource SettingsTitleStyle}"/>
-                <Button Content="Help Center" Style="{StaticResource SettingsButtonStyle}"/>
-                <Button Content="Contact Support" Style="{StaticResource SettingsButtonStyle}"/>
-                <Button Content="FAQ" Style="{StaticResource SettingsButtonStyle}"/>
+            
+            <!-- Divider -->
+            <Rectangle Height="1" Fill="{ThemeResource DividerStrokeColorDefaultBrush}"/>
+            
+            <!-- Instructions -->
+            <StackPanel Spacing="12" Margin="0,8,0,0">
+                <TextBlock Text="Instructions" 
+                           FontSize="20" 
+                           FontWeight="SemiBold" 
+                           HorizontalAlignment="Center"
+                           Margin="0,0,0,8"/>
+                
+                <TextBox x:Name="InstructionsTextBox"
+                         IsReadOnly="True"
+                         TextWrapping="Wrap"
+                         AcceptsReturn="True"
+                         Height="180"
+                         Padding="12"
+                         PlaceholderText="Instructions will be shown here."
+                         Text="Response Modifier allows you to intercept and modify HTTP responses.
+                         
+1. Configure the proxy server in Settings
+2. Add targets in the Targets page
+3. Enable the targets you want to modify
+4. Start the proxy server
+                         
+For more detailed instructions, visit the GitHub repository."/>
             </StackPanel>
-
-            <!-- Legal -->
-            <StackPanel Style="{StaticResource SettingsGroupStyle}">
-                <TextBlock Text="Legal" Style="{StaticResource SettingsTitleStyle}"/>
-                <Button Content="Privacy Policy" Style="{StaticResource SettingsButtonStyle}"/>
-                <Button Content="Cookie Policy" Style="{StaticResource SettingsButtonStyle}"/>
-                <Button Content="Third-Party Licenses" Style="{StaticResource SettingsButtonStyle}"/>
-            </StackPanel>
+            
+            <!-- GitHub Button -->
+            <HyperlinkButton Content="View on GitHub"
+                             NavigateUri="https://github.com/SalamiSimon"
+                             HorizontalAlignment="Center"/>
         </StackPanel>
     </ScrollViewer>
 </Page> 

@@ -83,7 +83,7 @@ namespace WinUI_V3.Pages
                 }
                 
                 // Run the CLI command to list targets with JSON output - no db argument needed
-                var results = await RunCliCommandAsync("json-list");
+                var results = await RunCliCommandAsync("json-list-all");
                 
                 // For each target returned by the CLI, add it to our observable collection
                 foreach (var target in results)
@@ -227,14 +227,14 @@ namespace WinUI_V3.Pages
                     Debug.WriteLine(output);
                     Debug.WriteLine("------ End of CLI output ------");
                     
-                    // Handle json-list command
-                    if (command == "json-list" && output.Trim().StartsWith("[") && output.Trim().EndsWith("]"))
+                    // Handle json-list and json-list-all commands
+                    if ((command == "json-list" || command == "json-list-all") && output.Trim().StartsWith("[") && output.Trim().EndsWith("]"))
                     {
                         try 
                         {
                             // Deserialize JSON directly
                             var jsonTargets = JsonSerializer.Deserialize<List<Dictionary<string, JsonElement>>>(output);
-                            
+
                             foreach (var target in jsonTargets)
                             {
                                 var targetItem = new TargetItem
@@ -249,7 +249,7 @@ namespace WinUI_V3.Pages
                                         : target["static_response"].GetString(),
                                     IsEnabled = target["is_enabled"].GetInt32() == 1
                                 };
-                                
+
                                 results.Add(targetItem);
                             }
                         }
