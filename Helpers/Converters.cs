@@ -80,4 +80,35 @@ namespace WinUI_V3.Helpers
             throw new NotImplementedException();
         }
     }
+    
+    /// <summary>
+    /// Converts a boolean value to a Style resource based on a parameter of format "TrueStyleKey|FalseStyleKey"
+    /// </summary>
+    public class BoolToStyleConverter : IValueConverter
+    {
+        public object Convert(object value, Type targetType, object parameter, string language)
+        {
+            if (value is bool boolValue && parameter is string paramString)
+            {
+                string[] options = paramString.Split('|');
+                if (options.Length == 2)
+                {
+                    string styleKey = boolValue ? options[0] : options[1];
+                    
+                    // Try to find the style in application resources
+                    if (Application.Current.Resources.TryGetValue(styleKey, out object style))
+                    {
+                        return style;
+                    }
+                }
+            }
+            
+            return null;
+        }
+
+        public object ConvertBack(object value, Type targetType, object parameter, string language)
+        {
+            throw new NotImplementedException();
+        }
+    }
 } 

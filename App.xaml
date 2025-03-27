@@ -34,6 +34,7 @@
             <!-- Converters -->
             <helpers:BoolToStringConverter x:Key="BoolToStringConverter"/>
             <helpers:BoolToColorConverter x:Key="BoolToColorConverter"/>
+            <helpers:BoolToStyleConverter x:Key="BoolToStyleConverter"/>
             
             <!-- Other app resources here -->
         </ResourceDictionary>

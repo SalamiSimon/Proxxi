@@ -356,7 +356,8 @@ namespace WinUI_V3.Pages
                 
                 // Reset dialog fields
                 TargetUrlTextBox.Text = string.Empty;
-                HttpStatusComboBox.SelectedIndex = 0; // Default to 200 OK
+                HttpStatusComboBox.SelectedIndex = 0; // Default to "Any Status"
+                TargetHttpStatusComboBox.SelectedIndex = 0; // Default to "No Change"
                 StaticResponseRadioButton.IsChecked = true;
                 StaticResponseTextBox.Text = string.Empty;
                 DynamicResponseTextBox.Text = @"def handle_response(flow: http.HTTPFlow) -> None:
@@ -426,6 +427,24 @@ namespace WinUI_V3.Pages
                     {
                         // Set to "Any Status"
                         HttpStatusComboBox.SelectedIndex = 0;
+                    }
+                    
+                    // Find and select the matching target HTTP status
+                    if (!string.IsNullOrEmpty(targetItem.TargetHttpStatus))
+                    {
+                        foreach (ComboBoxItem item in TargetHttpStatusComboBox.Items)
+                        {
+                            if (item.Tag.ToString() == targetItem.TargetHttpStatus)
+                            {
+                                TargetHttpStatusComboBox.SelectedItem = item;
+                                break;
+                            }
+                        }
+                    }
+                    else
+                    {
+                        // Set to "No Change"
+                        TargetHttpStatusComboBox.SelectedIndex = 0;
                     }
                     
                     // Set response type
@@ -520,21 +539,30 @@ namespace WinUI_V3.Pages
             }
         }
 
-        private async void ToggleEnableButton_Click(object sender, RoutedEventArgs e)
+        private async void EnableSwitch_Toggled(object sender, RoutedEventArgs e)
         {
             try
             {
-                if (sender is Button button && button.Tag is TargetItem targetItem)
+                if (sender is ToggleSwitch toggleSwitch && toggleSwitch.Tag is TargetItem targetItem)
                 {
                     // Don't allow toggling the placeholder item
                     if (targetItem.Id == 0)
                     {
+                        // Reset the toggle switch to its original state without triggering another event
+                        toggleSwitch.Toggled -= EnableSwitch_Toggled;
+                        toggleSwitch.IsOn = true;
+                        toggleSwitch.Toggled += EnableSwitch_Toggled;
                         return;
                     }
                     
                     // Check if Python environment is available
                     if (!IsPythonEnvironmentAvailable)
                     {
+                        // Reset the toggle switch to its original state without triggering another event
+                        toggleSwitch.Toggled -= EnableSwitch_Toggled;
+                        toggleSwitch.IsOn = !toggleSwitch.IsOn;
+                        toggleSwitch.Toggled += EnableSwitch_Toggled;
+                        
                         ShowErrorMessage(
                             "Python Not Found", 
                             "Python is required for the targets functionality. Please ensure Python is installed and available in your PATH."
@@ -542,18 +570,29 @@ namespace WinUI_V3.Pages
                         return;
                     }
                     
+                    // Get the toggle state from the switch
+                    bool isEnabled = toggleSwitch.IsOn;
+                    
                     // Run the CLI command to enable/disable the target
-                    string command = targetItem.IsEnabled ? "disable" : "enable";
+                    string command = isEnabled ? "enable" : "disable";
                     await RunCliCommandAsync(command, targetItem.Id.ToString());
                     
-                    // Update the UI
-                    targetItem.IsEnabled = !targetItem.IsEnabled;
+                    // Update the model
+                    targetItem.IsEnabled = isEnabled;
                 }
             }
             catch (Exception ex)
             {
                 Debug.WriteLine($"Error toggling target: {ex.Message}");
                 ShowErrorMessage("Error Toggling Target", $"Failed to toggle target state: {ex.Message}");
+                
+                // Reset the toggle switch to its original state without triggering another event
+                if (sender is ToggleSwitch toggleSwitch && toggleSwitch.Tag is TargetItem targetItem)
+                {
+                    toggleSwitch.Toggled -= EnableSwitch_Toggled;
+                    toggleSwitch.IsOn = targetItem.IsEnabled;
+                    toggleSwitch.Toggled += EnableSwitch_Toggled;
+                }
             }
         }
 
@@ -590,7 +629,10 @@ namespace WinUI_V3.Pages
                     return;
                 }
                 
+                // Get match HTTP status and target HTTP status
                 string httpStatus = (HttpStatusComboBox.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "Any";
+                string targetHttpStatus = (TargetHttpStatusComboBox.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "NoChange";
+                
                 bool isStaticResponse = StaticResponseRadioButton.IsChecked == true;
                 string responseContent = isStaticResponse ? 
                     StaticResponseTextBox.Text : 
@@ -630,6 +672,13 @@ namespace WinUI_V3.Pages
                 {
                     args_list.Add("--status");
                     args_list.Add(httpStatus);
+                }
+                
+                // Add the target status code if not "NoChange"
+                if (targetHttpStatus != "NoChange")
+                {
+                    args_list.Add("--target-status");
+                    args_list.Add(targetHttpStatus);
                 }
                 
                 // Add content based on the type

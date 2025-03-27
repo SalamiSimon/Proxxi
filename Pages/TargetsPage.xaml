@@ -7,6 +7,17 @@
     mc:Ignorable="d"
     Style="{StaticResource SettingsPageStyle}">
 
+    <Page.Resources>
+        <Style x:Key="DisabledItemStyle" TargetType="Border">
+            <Setter Property="Opacity" Value="0.6"/>
+            <Setter Property="Background" Value="{ThemeResource CardBackgroundFillColorSecondaryBrush}"/>
+        </Style>
+        <Style x:Key="EnabledItemStyle" TargetType="Border">
+            <Setter Property="Opacity" Value="1.0"/>
+            <Setter Property="Background" Value="{ThemeResource CardBackgroundFillColorSecondaryBrush}"/>
+        </Style>
+    </Page.Resources>
+
     <Grid Margin="20">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
@@ -48,14 +59,13 @@
                             <ColumnDefinition Width="Auto"/>
                             <ColumnDefinition Width="Auto"/>
                             <ColumnDefinition Width="Auto"/>
-                            <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
                         
                         <!-- Target URL -->
                         <Border Grid.Column="0" 
-                                Background="{ThemeResource CardBackgroundFillColorSecondaryBrush}" 
                                 CornerRadius="4" 
-                                Padding="12,8">
+                                Padding="12,8"
+                                Style="{Binding IsEnabled, Converter={StaticResource BoolToStyleConverter}, ConverterParameter='EnabledItemStyle|DisabledItemStyle'}">
                             <StackPanel>
                                 <TextBlock Text="{Binding TargetUrl}" 
                                        VerticalAlignment="Center" 
@@ -69,7 +79,7 @@
                                                Opacity="0.7" 
                                                Margin="4,0,0,0"/>
                                     
-                                    <TextBlock Text=" | Status: " 
+                                    <TextBlock Text=" | Match Status: " 
                                                FontSize="12" 
                                                Opacity="0.7" 
                                                Margin="8,0,0,0"/>
@@ -78,24 +88,27 @@
                                                Opacity="0.7" 
                                                Margin="4,0,0,0"/>
                                     
-                                    <TextBlock Text="{Binding IsEnabled, Converter={StaticResource BoolToStringConverter}, ConverterParameter='Enabled|Disabled'}" 
-                                               Foreground="{Binding IsEnabled, Converter={StaticResource BoolToColorConverter}, ConverterParameter='Green|Red'}" 
+                                    <TextBlock Text=" | Response Status: " 
                                                FontSize="12" 
-                                               Margin="12,0,0,0"/>
+                                               Opacity="0.7" 
+                                               Margin="8,0,0,0"/>
+                                    <TextBlock Text="{Binding TargetHttpStatus, TargetNullValue='No Change'}" 
+                                               FontSize="12" 
+                                               Opacity="0.7" 
+                                               Margin="4,0,0,0"/>
                                 </StackPanel>
                             </StackPanel>
                         </Border>
                         
-                        <!-- Toggle Enable/Disable Button -->
-                        <Button Grid.Column="1" 
-                                Margin="8,0,0,0" 
-                                ToolTipService.ToolTip="{Binding IsEnabled, Converter={StaticResource BoolToStringConverter}, ConverterParameter='Disable|Enable'}" 
-                                Tag="{Binding}"
-                                Click="ToggleEnableButton_Click">
-                            <FontIcon Glyph="{Binding IsEnabled, Converter={StaticResource BoolToStringConverter}, ConverterParameter='&#xE73D;|&#xE73E;'}" 
-                                      Foreground="{Binding IsEnabled, Converter={StaticResource BoolToColorConverter}, ConverterParameter='Green|Red'}" 
-                                      FontSize="16"/>
-                        </Button>
+                        <!-- Toggle Enable/Disable Switch -->
+                        <ToggleSwitch Grid.Column="1" 
+                                      Margin="8,0,0,0"
+                                      IsOn="{Binding IsEnabled, Mode=TwoWay}"
+                                      OffContent=""
+                                      OnContent=""
+                                      ToolTipService.ToolTip="Enable/Disable Target"
+                                      Tag="{Binding}"
+                                      Toggled="EnableSwitch_Toggled"/>
                         
                         <!-- Edit Button -->
                         <Button Grid.Column="2" 
@@ -133,11 +146,31 @@
                     <TextBox x:Name="TargetUrlTextBox" PlaceholderText="https://example.com/api/endpoint"/>
                 </StackPanel>
                 
-                <!-- HTTP Status -->
+                <!-- HTTP Status to Match -->
                 <StackPanel Spacing="8">
-                    <TextBlock Text="HTTP Status Response:" FontWeight="SemiBold"/>
+                    <TextBlock Text="Match HTTP Status:" FontWeight="SemiBold"/>
+                    <TextBlock Text="Only modify responses with this status code. Select 'Any Status' to match all responses." 
+                               FontSize="12" Opacity="0.7" Margin="0,0,0,4"/>
                     <ComboBox x:Name="HttpStatusComboBox" HorizontalAlignment="Stretch">
                         <ComboBoxItem Content="Any Status" Tag="Any"/>
+                        <ComboBoxItem Content="200 - OK" Tag="200"/>
+                        <ComboBoxItem Content="201 - Created" Tag="201"/>
+                        <ComboBoxItem Content="204 - No Content" Tag="204"/>
+                        <ComboBoxItem Content="400 - Bad Request" Tag="400"/>
+                        <ComboBoxItem Content="401 - Unauthorized" Tag="401"/>
+                        <ComboBoxItem Content="403 - Forbidden" Tag="403"/>
+                        <ComboBoxItem Content="404 - Not Found" Tag="404"/>
+                        <ComboBoxItem Content="500 - Internal Server Error" Tag="500"/>
+                    </ComboBox>
+                </StackPanel>
+                
+                <!-- Target HTTP Status -->
+                <StackPanel Spacing="8">
+                    <TextBlock Text="Set Response Status:" FontWeight="SemiBold"/>
+                    <TextBlock Text="Change the response to this status code. Select 'No Change' to keep the original status." 
+                               FontSize="12" Opacity="0.7" Margin="0,0,0,4"/>
+                    <ComboBox x:Name="TargetHttpStatusComboBox" HorizontalAlignment="Stretch">
+                        <ComboBoxItem Content="No Change" Tag="NoChange"/>
                         <ComboBoxItem Content="200 - OK" Tag="200"/>
                         <ComboBoxItem Content="201 - Created" Tag="201"/>
                         <ComboBoxItem Content="204 - No Content" Tag="204"/>

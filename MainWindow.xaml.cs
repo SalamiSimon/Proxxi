@@ -35,7 +35,7 @@ namespace WinUI_V3
             var windowHandle = WinRT.Interop.WindowNative.GetWindowHandle(this);
             var windowId = Microsoft.UI.Win32Interop.GetWindowIdFromWindow(windowHandle);
             var appWindow = Microsoft.UI.Windowing.AppWindow.GetFromWindowId(windowId);
-            appWindow.Resize(new Windows.Graphics.SizeInt32 { Width = 800, Height = 600 });
+            appWindow.Resize(new Windows.Graphics.SizeInt32 { Width = 800, Height = 800 });
 
             // Set up navigation
             NavView.SelectionChanged += NavView_SelectionChanged;
