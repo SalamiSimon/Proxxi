@@ -3,6 +3,7 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Data;
 using Microsoft.UI.Xaml.Media;
 using System;
+using System.Globalization;
 using Windows.UI;
 
 namespace WinUI_V3.Helpers
@@ -141,6 +142,42 @@ namespace WinUI_V3.Helpers
             {
                 return Visibility.Visible;
             }
+        }
+
+        public object ConvertBack(object value, Type targetType, object parameter, string language)
+        {
+            throw new NotImplementedException();
+        }
+    }
+
+    /// <summary>
+    /// Converts a string to PascalCase formatting (first letter capitalized)
+    /// Used for displaying modification types in a user-friendly way.
+    /// </summary>
+    public class StringToPascalCaseConverter : IValueConverter
+    {
+        public object Convert(object value, Type targetType, object parameter, string language)
+        {
+            if (value is string strValue)
+            {
+                // Handle empty or null strings
+                if (string.IsNullOrEmpty(strValue))
+                {
+                    return string.Empty;
+                }
+
+                // Special case for 'none' - display as 'Status Only'
+                if (strValue.ToLowerInvariant() == "none")
+                {
+                    return "Status Only";
+                }
+
+                // Convert first letter to uppercase
+                TextInfo textInfo = CultureInfo.CurrentCulture.TextInfo;
+                return textInfo.ToTitleCase(strValue.ToLowerInvariant());
+            }
+            
+            return value?.ToString() ?? string.Empty;
         }
 
         public object ConvertBack(object value, Type targetType, object parameter, string language)

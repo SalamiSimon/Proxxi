@@ -3,6 +3,8 @@ using Microsoft.UI.Xaml.Controls;
 using System;
 using System.Diagnostics;
 using System.IO;
+using System.Net;
+using System.Net.Http;
 using System.Threading.Tasks;
 using WinUI_V3.Helpers;
 
@@ -18,29 +20,31 @@ namespace WinUI_V3.Pages
         // Process for the proxy server
         private Process? _proxyProcess = null;
         
+        // Settings
+        private bool _showMitmproxyLogs = false;
+        
         public SettingsPage()
         {
             this.InitializeComponent();
-            
-            // Check if proxy is running and update the toggle
-            CheckProxyStatus();
+            this.Loaded += SettingsPage_Loaded;
         }
         
-        private async void CheckProxyStatus()
+        private async void SettingsPage_Loaded(object sender, RoutedEventArgs e)
         {
             try
             {
-                // Check if the proxy process is running
-                bool isRunning = await IsProxyRunning();
-                
-                // Update the toggle without triggering the event
-                ProxyToggle.Toggled -= ProxyToggle_Toggled;
-                ProxyToggle.IsOn = isRunning;
+                // Initialize proxy toggle state based on whether proxy is running
+                ProxyToggle.Toggled -= ProxyToggle_Toggled; // Prevent event firing during init
+                ProxyToggle.IsOn = await IsProxyRunning();
                 ProxyToggle.Toggled += ProxyToggle_Toggled;
+                
+                // Load the ShowLogs setting value (could be from settings storage in the future)
+                _showMitmproxyLogs = false; // default to false
+                ShowLogsToggle.IsOn = _showMitmproxyLogs;
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"Error checking proxy status: {ex.Message}");
+                Debug.WriteLine($"Error in SettingsPage_Loaded: {ex.Message}");
             }
         }
         
@@ -48,33 +52,33 @@ namespace WinUI_V3.Pages
         {
             try
             {
-                // Look for mitmdump processes
-                var mitmdumpProcesses = Process.GetProcessesByName("mitmdump");
+                // Check if the proxy is running by looking for mitmdump processes
+                var processes = Process.GetProcessesByName("mitmdump");
                 
-                foreach (var process in mitmdumpProcesses)
+                if (processes.Length > 0)
                 {
+                    return true;
+                }
+                
+                // Also check if the proxy is responding at 127.0.0.1:8080
+                using (var client = new HttpClient(new HttpClientHandler
+                {
+                    Proxy = new WebProxy("http://127.0.0.1:8080"),
+                    UseProxy = true
+                }))
+                {
+                    client.Timeout = TimeSpan.FromSeconds(2);
                     try
                     {
-                        // Check if the command line contains our script
-                        var processModule = process.MainModule?.FileName;
-                        if (processModule != null && processModule.Contains("mitmdump"))
-                        {
-                            // Found a running mitmdump process
-                            return true;
-                        }
+                        // Make a request to a reliable URL - we don't care about the response
+                        var response = await client.GetAsync("http://example.com");
+                        return true;
                     }
                     catch
                     {
-                        // Ignore errors when trying to access process information
-                    }
-                    finally
-                    {
-                        process.Dispose();
+                        return false;
                     }
                 }
-                
-                // No matching process found
-                return false;
             }
             catch (Exception ex)
             {
@@ -110,6 +114,41 @@ namespace WinUI_V3.Pages
             }
         }
         
+        private async void ShowLogsToggle_Toggled(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                _showMitmproxyLogs = ShowLogsToggle.IsOn;
+                
+                // If the proxy is currently running, restart it to apply the new setting
+                if (ProxyToggle.IsOn)
+                {
+                    // Briefly disable the toggle to prevent interference
+                    ProxyToggle.Toggled -= ProxyToggle_Toggled;
+                    
+                    // Stop and restart the proxy with the new setting
+                    await StopProxy();
+                    await StartProxy();
+                    
+                    // Re-enable the toggle
+                    ProxyToggle.Toggled += ProxyToggle_Toggled;
+                }
+                
+                // Save the setting (would be implemented in a full settings system)
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error toggling log visibility: {ex.Message}");
+                await ShowErrorDialog("Settings Error", $"Failed to change log visibility: {ex.Message}");
+                
+                // Reset the toggle without triggering the event
+                ShowLogsToggle.Toggled -= ShowLogsToggle_Toggled;
+                ShowLogsToggle.IsOn = !ShowLogsToggle.IsOn;
+                _showMitmproxyLogs = ShowLogsToggle.IsOn;
+                ShowLogsToggle.Toggled += ShowLogsToggle_Toggled;
+            }
+        }
+        
         private async Task StartProxy()
         {
             try
@@ -129,10 +168,10 @@ namespace WinUI_V3.Pages
                     FileName = "mitmdump",
                     Arguments = $"-s \"{mitm_core_path}\" --set block_global=false",
                     WorkingDirectory = Path.GetDirectoryName(RootModularPath),
-                    UseShellExecute = false,
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true,
-                    CreateNoWindow = true  // Hide the window
+                    UseShellExecute = _showMitmproxyLogs, // Use shell execute when showing logs
+                    RedirectStandardOutput = !_showMitmproxyLogs,
+                    RedirectStandardError = !_showMitmproxyLogs,
+                    CreateNoWindow = !_showMitmproxyLogs  // Show window based on toggle setting
                 };
                 
                 _proxyProcess = new Process { StartInfo = startInfo };
@@ -266,16 +305,33 @@ namespace WinUI_V3.Pages
             try
             {
                 // Create a batch file or shortcut in the Windows startup folder
-                string mitm_core_path = Path.Combine(ModularPath, "run_mitm.py");
+                string mitm_core_path = Path.Combine(RootModularPath, "run_mitm.py");
                 string startupCommand = $"mitmdump -s \"{mitm_core_path}\" --set block_global=false";
                 string startupPath = Path.Combine(
                     Environment.GetFolderPath(Environment.SpecialFolder.Startup),
                     "MitmModular.bat");
                 
-                string batchContent = $@"@echo off
-cd /d ""{Path.GetDirectoryName(ModularPath)}""
-{startupCommand}
+                string batchContent;
+                
+                if (_showMitmproxyLogs)
+                {
+                    // Create batch file that shows the console window
+                    batchContent = $@"@echo off
+cd /d ""{Path.GetDirectoryName(RootModularPath)}""
+start """" {startupCommand}
 exit";
+                }
+                else
+                {
+                    // Create batch file that hides the console window
+                    batchContent = $@"@echo off
+cd /d ""{Path.GetDirectoryName(RootModularPath)}""
+start /min """" {startupCommand}
+ping 127.0.0.1 -n 1 > nul
+:: The following command hides the command window
+powershell -WindowStyle Hidden -Command ""Start-Process '{startupCommand}' -WindowStyle Hidden""
+exit";
+                }
                 
                 await File.WriteAllTextAsync(startupPath, batchContent);
                 

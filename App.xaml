@@ -36,6 +36,7 @@
             <helpers:BoolToColorConverter x:Key="BoolToColorConverter"/>
             <helpers:BoolToStyleConverter x:Key="BoolToStyleConverter"/>
             <helpers:NumberToBooleanConverter x:Key="NumberToBooleanConverter"/>
+            <helpers:StringToPascalCaseConverter x:Key="StringToPascalCaseConverter"/>
             
             <!-- Other app resources here -->
         </ResourceDictionary>

@@ -50,3 +50,74 @@ modules.order
 Module.symvers
 Mkfile.old
 dkms.conf
+
+# Python specific
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+
+# Logs
+*.log
+logs/
+
+# Environment
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Visual Studio / WinUI / XAML
+.vs/
+bin/
+obj/
+*.user
+*.suo
+*.cache
+*.manifest
+*.pfx
+*.publishsettings
+AppPackages/
+BundleArtifacts/
+Package.StoreAssociation.xml
+_pkginfo.txt
+*.appx
+*.appxbundle
+*.appxupload
+
+# mitmproxy
+.mitmproxy/
+mitmproxy-ca-cert.cer
+
+# Other project-specific files
+*.bak
+*.swp
+*.swo
+*~
+Thumbs.db
+Desktop.ini
+.DS_Store

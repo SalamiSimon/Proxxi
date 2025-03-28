@@ -23,6 +23,9 @@ namespace WinUI_V3.Pages
         // Flag to check if Python environment is available
         private bool IsPythonEnvironmentAvailable { get; set; } = true;
         
+        // Flag to track when targets are being loaded
+        private bool _isLoadingTargets = false;
+        
         // HARDCODED PATHS - TEMPORARY
         private readonly string DbPath = @"C:\Users\Sten\Desktop\PROXIMITM\targets.db";
         private readonly string ModularPath = @"C:\Users\Sten\Desktop\PROXIMITM\mitm_modular";
@@ -66,6 +69,9 @@ namespace WinUI_V3.Pages
         {
             try
             {
+                // Set the loading flag to prevent toggle events from firing
+                _isLoadingTargets = true;
+                
                 // Check if Python is available before attempting to use it
                 if (!await IsPythonAvailable())
                 {
@@ -74,6 +80,7 @@ namespace WinUI_V3.Pages
                         "Python Not Found", 
                         "Python is required for the targets functionality. Please ensure Python is installed and available in your PATH."
                     );
+                    _isLoadingTargets = false;
                     return;
                 }
                 
@@ -93,6 +100,8 @@ namespace WinUI_V3.Pages
                         ResponseContent = "{}",
                         IsEnabled = true
                     });
+                    
+                    _isLoadingTargets = false;
                     return;
                 }
                 
@@ -118,6 +127,9 @@ namespace WinUI_V3.Pages
                         IsEnabled = true
                     });
                 }
+                
+                // Reset the loading flag
+                _isLoadingTargets = false;
             }
             catch (Exception ex)
             {
@@ -136,6 +148,9 @@ namespace WinUI_V3.Pages
                     ResponseContent = "{}",
                     IsEnabled = true
                 });
+                
+                // Reset the loading flag
+                _isLoadingTargets = false;
             }
         }
         
@@ -251,16 +266,22 @@ namespace WinUI_V3.Pages
 
                             foreach (var target in jsonTargets)
                             {
+                                // Get the modification type directly from the JSON
+                                string modType = target["modification_type"].GetString();
+                                
+                                // Create the target item with appropriate flags based on modification type
                                 var targetItem = new TargetItem
                                 {
                                     Id = target["id"].GetInt32(),
                                     TargetUrl = target["url"].GetString(),
                                     HttpStatus = target["status_code"].ValueKind == JsonValueKind.Null ? null : target["status_code"].GetInt32().ToString(),
                                     TargetHttpStatus = target["target_status_code"].ValueKind == JsonValueKind.Null ? null : target["target_status_code"].GetInt32().ToString(),
-                                    IsStaticResponse = target["modification_type"].GetString() == "static",
-                                    ResponseContent = target["modification_type"].GetString() == "dynamic" 
+                                    ModificationType = modType,
+                                    IsStaticResponse = modType == "static",
+                                    IsNoModification = modType == "none",
+                                    ResponseContent = modType == "dynamic" 
                                         ? target["dynamic_code"].GetString() 
-                                        : target["static_response"].GetString(),
+                                        : (modType == "static" ? target["static_response"].GetString() : string.Empty),
                                     IsEnabled = target["is_enabled"].GetInt32() == 1
                                 };
 
@@ -605,6 +626,10 @@ namespace WinUI_V3.Pages
 
         private async void EnableSwitch_Toggled(object sender, RoutedEventArgs e)
         {
+            // Skip toggling if we're currently loading targets
+            if (_isLoadingTargets)
+                return;
+                
             try
             {
                 if (sender is ToggleSwitch toggleSwitch && toggleSwitch.Tag is TargetItem targetItem)
@@ -670,12 +695,25 @@ namespace WinUI_V3.Pages
         // Handle radio button checked state changes
         private void NoModificationRadioButton_Checked(object sender, RoutedEventArgs e)
         {
-            try 
+            try
             {
-                if (NoModificationRadioButton?.IsChecked == true && StaticResponsePanel != null && DynamicResponsePanel != null)
-                {
+                if (StaticResponsePanel != null)
                     StaticResponsePanel.Visibility = Visibility.Collapsed;
+                
+                if (DynamicResponsePanel != null)
                     DynamicResponsePanel.Visibility = Visibility.Collapsed;
+                
+                // Ensure target status combo box is still enabled
+                if (TargetHttpStatusComboBox != null)
+                {
+                    // We don't want to force a selection, but we should encourage one
+                    // for "none" modification type
+                    if (TargetHttpStatusComboBox.SelectedIndex == 0) // "No Change" selected
+                    {
+                        // Maybe highlight it somehow or show a hint
+                        // For now we'll just log it
+                        Debug.WriteLine("No modification selected with 'No Change' status code");
+                    }
                 }
             }
             catch (Exception ex)
@@ -932,15 +970,23 @@ namespace WinUI_V3.Pages
                 }
                 
                 // If we're only changing the status code (no modification to content)
-                if (isNoModification && targetHttpStatus != "NoChange")
+                if (isNoModification)
                 {
+                    if (targetHttpStatus == "NoChange")
+                    {
+                        // No changes selected - show a message
+                        ShowErrorMessage("No Changes Selected", "Please select either a response modification or a status code change.");
+                        args.Cancel = true;
+                        return;
+                    }
+                    
                     try
                     {
-                        // Create an empty static response for status-only modifications
+                        // Use the new 'none' modification type for status-only changes
                         var args_list = new List<string> {
                             "add",
                             $"\"{targetUrl}\"",
-                            "--type", "static",
+                            "--type", "none",
                             "--target-status", targetHttpStatus
                         };
                         
@@ -950,12 +996,6 @@ namespace WinUI_V3.Pages
                             args_list.Add("--status");
                             args_list.Add(httpStatus);
                         }
-                        
-                        // Add empty response
-                        string tempFile = Path.GetTempFileName();
-                        await File.WriteAllTextAsync(tempFile, "{}");
-                        args_list.Add("--response-file");
-                        args_list.Add(tempFile);
                         
                         // Run the CLI command
                         await RunCliCommandAsync(args_list[0], args_list.Skip(1).ToArray());
@@ -968,7 +1008,7 @@ namespace WinUI_V3.Pages
                     }
                 }
                 // Handle normal content modifications
-                else if (!isNoModification)
+                else
                 {
                     try
                     {
@@ -1029,31 +1069,9 @@ namespace WinUI_V3.Pages
                         return;
                     }
                 }
-                else if (isNoModification && targetHttpStatus == "NoChange")
-                {
-                    // No changes selected - show a message
-                    ShowErrorMessage("No Changes Selected", "Please select either a response modification or a status code change.");
-                    args.Cancel = true;
-                    return;
-                }
                 
                 // Reload the targets
-                try
-                {
-                    LoadTargets();
-                    
-                    // If we had a placeholder, remove it
-                    var placeholder = Targets.FirstOrDefault(t => t.Id == 0);
-                    if (placeholder != null)
-                    {
-                        Targets.Remove(placeholder);
-                    }
-                }
-                catch (Exception ex)
-                {
-                    Debug.WriteLine($"Error reloading targets after add: {ex.Message}");
-                    // Continue anyway since the target was probably added successfully
-                }
+                LoadTargets();
             }
             catch (Exception ex)
             {
@@ -1210,6 +1228,8 @@ namespace WinUI_V3.Pages
         public string? HttpStatus { get; set; } = "200";
         public string? TargetHttpStatus { get; set; }
         public bool IsStaticResponse { get; set; } = true;
+        public bool IsNoModification { get; set; } = false;
+        public string ModificationType { get; set; } = "static";
         public string ResponseContent { get; set; } = string.Empty;
         public bool IsEnabled { get; set; } = true;
     }

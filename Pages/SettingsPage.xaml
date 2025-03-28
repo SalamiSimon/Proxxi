@@ -89,6 +89,26 @@
                             HorizontalAlignment="Right"
                             MinWidth="120"/>
                 </Grid>
+
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto" MinWidth="120"/>
+                    </Grid.ColumnDefinitions>
+                    
+                    <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                        <TextBlock Text="Show Mitmproxy Logs" 
+                                   Style="{StaticResource BodyStrongTextBlockStyle}"/>
+                        <TextBlock Text="Display the mitmproxy console window for debugging" 
+                                   Style="{StaticResource CaptionTextBlockStyle}" 
+                                   Opacity="0.7"/>
+                    </StackPanel>
+                    
+                    <ToggleSwitch Grid.Column="1" 
+                                 x:Name="ShowLogsToggle" 
+                                 IsOn="False"
+                                 Toggled="ShowLogsToggle_Toggled"/>
+                </Grid>
             </StackPanel>
 
             <!-- Target Management -->
