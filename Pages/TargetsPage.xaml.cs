@@ -8,7 +8,12 @@ using System.IO;
 using System.Linq;
 using System.Text.Json;
 using System.Threading.Tasks;
+using System.Net.Http;
+using System.Net;
 using WinUI_V3.Helpers;
+using Microsoft.UI.Xaml.Media;
+using Microsoft.UI;
+using Windows.UI;
 
 namespace WinUI_V3.Pages
 {
@@ -26,6 +31,9 @@ namespace WinUI_V3.Pages
         // Flag to track when targets are being loaded
         private bool _isLoadingTargets = false;
         
+        // Timer for checking server status
+        private DispatcherTimer? _statusTimer;
+        
         // HARDCODED PATHS - TEMPORARY
         private readonly string DbPath = @"C:\Users\Sten\Desktop\PROXIMITM\targets.db";
         private readonly string ModularPath = @"C:\Users\Sten\Desktop\PROXIMITM\mitm_modular";
@@ -42,6 +50,11 @@ namespace WinUI_V3.Pages
                 
                 // Set the data context for the list view
                 TargetsListView.ItemsSource = Targets;
+                
+                // Initialize the status checking timer
+                _statusTimer = new DispatcherTimer();
+                _statusTimer.Interval = TimeSpan.FromSeconds(30);
+                _statusTimer.Tick += StatusTimer_Tick;
             }
             catch (Exception ex)
             {
@@ -57,10 +70,67 @@ namespace WinUI_V3.Pages
             {
                 // Load targets when the page is fully loaded
                 LoadTargets();
+                
+                // Check server status immediately and start the timer
+                UpdateServerStatus();
+                _statusTimer.Start();
             }
             catch (Exception ex)
             {
                 Debug.WriteLine($"Error in TargetsPage_Loaded: {ex.Message}");
+            }
+        }
+        
+        private void StatusTimer_Tick(object? sender, object e)
+        {
+            UpdateServerStatus();
+        }
+        
+        private async void UpdateServerStatus()
+        {
+            try
+            {
+                bool isRunning = await IsProxyRunning();
+                
+                // Update the UI elements based on server status
+                if (isRunning)
+                {
+                    StatusDot.Fill = new SolidColorBrush(Colors.Green);
+                    ServerStatusText.Text = "Server Running";
+                }
+                else
+                {
+                    StatusDot.Fill = new SolidColorBrush(Colors.Red);
+                    ServerStatusText.Text = "Server Not Running";
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error updating server status: {ex.Message}");
+                StatusDot.Fill = new SolidColorBrush(Colors.Red);
+                ServerStatusText.Text = "Status Check Error";
+            }
+        }
+        
+        private async Task<bool> IsProxyRunning()
+        {
+            try
+            {
+                // Check if the proxy is running by looking for mitmdump processes
+                var processes = Process.GetProcessesByName("mitmdump");
+                
+                if (processes.Length > 0)
+                {
+                    // Found mitmdump processes - consider the proxy running
+                    return true;
+                }
+                
+                return false;
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error checking if proxy is running: {ex.Message}");
+                return false;
             }
         }
 
@@ -267,7 +337,7 @@ namespace WinUI_V3.Pages
                             foreach (var target in jsonTargets)
                             {
                                 // Get the modification type directly from the JSON
-                                string modType = target["modification_type"].GetString();
+                                string? modType = target["modification_type"].GetString();
                                 
                                 // Create the target item with appropriate flags based on modification type
                                 var targetItem = new TargetItem

@@ -38,6 +38,12 @@
             <helpers:NumberToBooleanConverter x:Key="NumberToBooleanConverter"/>
             <helpers:StringToPascalCaseConverter x:Key="StringToPascalCaseConverter"/>
             
+            <!-- Styles -->
+            <Style x:Key="SubtleButtonStyle" TargetType="Button" BasedOn="{StaticResource DefaultButtonStyle}">
+                <Setter Property="Background" Value="Transparent" />
+                <Setter Property="BorderThickness" Value="0" />
+            </Style>
+            
             <!-- Other app resources here -->
         </ResourceDictionary>
     </Application.Resources>

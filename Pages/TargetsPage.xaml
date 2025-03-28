@@ -26,10 +26,34 @@
         </Grid.RowDefinitions>
 
         <!-- Header -->
-        <TextBlock Grid.Row="0" 
-                   Text="Targets" 
-                   Style="{StaticResource TitleTextBlockStyle}" 
-                   Margin="0,0,0,20"/>
+        <Grid Grid.Row="0" Margin="0,0,0,20">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            
+            <TextBlock Grid.Column="0" 
+                       Text="Targets" 
+                       Style="{StaticResource TitleTextBlockStyle}"/>
+                       
+            <!-- Server Status Indicator -->
+            <Border Grid.Column="2" 
+                    x:Name="ServerStatusIndicator" 
+                    CornerRadius="4" 
+                    Padding="12,8" 
+                    Background="{ThemeResource CardBackgroundFillColorSecondaryBrush}">
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <Ellipse x:Name="StatusDot" 
+                             Width="12" 
+                             Height="12" 
+                             Fill="Red"/>
+                    <TextBlock x:Name="ServerStatusText" 
+                               Text="Server Not Running" 
+                               VerticalAlignment="Center"/>
+                </StackPanel>
+            </Border>
+        </Grid>
 
         <!-- Add Target Button -->
         <Button Grid.Row="1" 

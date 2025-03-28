@@ -56,37 +56,8 @@ namespace WinUI_V3.Pages
                 
                 if (processes.Length > 0)
                 {
-                    // Found mitmdump processes, now check if they're responding
-                    using (var client = new HttpClient(new HttpClientHandler
-                    {
-                        Proxy = new WebProxy("http://127.0.0.1:8080"),
-                        UseProxy = true
-                    }))
-                    {
-                        client.Timeout = TimeSpan.FromSeconds(5); // Increase timeout from 2s to 5s
-                        try
-                        {
-                            // Make a request to a reliable URL - we don't care about the response
-                            var response = await client.GetAsync("http://example.com");
-                            return true;
-                        }
-                        catch (HttpRequestException)
-                        {
-                            // HTTP-specific errors might still mean the proxy is running
-                            return true;
-                        }
-                        catch (TaskCanceledException)
-                        {
-                            // Timeout - proxy might be starting up but not ready
-                            Debug.WriteLine("Proxy check timed out - might be starting up");
-                            return processes.Length > 0; // If we found processes, assume it's starting
-                        }
-                        catch (Exception ex)
-                        {
-                            Debug.WriteLine($"Error checking proxy connection: {ex.GetType().Name}: {ex.Message}");
-                            return false;
-                        }
-                    }
+                    // Found mitmdump processes - consider the proxy running
+                    return true;
                 }
                 
                 return false;

@@ -58,6 +58,33 @@
                         </NavigationViewItem.Icon>
                     </NavigationViewItem>
                 </NavigationView.MenuItems>
+                
+                <!-- Footer with Coffee Button -->
+                <NavigationView.PaneFooter>
+                    <StackPanel Margin="0,0,0,16" HorizontalAlignment="Center">
+                        <Button x:Name="CoffeeButton" 
+                                Style="{StaticResource SubtleButtonStyle}"
+                                Width="48" Height="48"
+                                Padding="8"
+                                ToolTipService.ToolTip="Buy Me A Coffee"
+                                Click="CoffeeButton_Click"
+                                HorizontalAlignment="Center">
+                            <!-- Try the image first, fallback to icon if image is missing -->
+                            <Grid HorizontalAlignment="Center">
+                                <Image Source="ms-appx:///Assets/coffee.png" Stretch="Uniform" HorizontalAlignment="Center"/>
+                                <FontIcon x:Name="FallbackIcon" 
+                                          Glyph="&#xE724;" 
+                                          FontSize="24"
+                                          Visibility="Collapsed"
+                                          HorizontalAlignment="Center"/>
+                            </Grid>
+                        </Button>
+                        <TextBlock Text="Donate" 
+                                   HorizontalAlignment="Center" 
+                                   FontSize="12" 
+                                   Margin="0,4,0,0"/>
+                    </StackPanel>
+                </NavigationView.PaneFooter>
             </NavigationView>
 
             <!-- Content Frame  ControlAltFillColorTransparentBrush LayerOnAcrylicFillColorDefaultBrush -->

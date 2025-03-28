@@ -1,0 +1,21 @@
+{
+  "status": "premium",
+  "subscription": {
+    "id": "sub_12345",
+    "state": "active",
+    "trialEndsAt": "2099-12-31T23:59:59Z",
+    "endsAt": "2099-12-31T23:59:59Z",
+    "plan": {
+      "id": "plan_premium",
+      "name": "Premium",
+      "features": ["feature1", "feature2", "feature3"]
+    }
+  },
+  "user": {
+    "id": "user_12345",
+    "email": "user@example.com",
+    "role": "premium",
+    "permissions": ["all"]
+  },
+  "modified_by": "MITM Modular Static Response"
+} 

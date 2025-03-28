@@ -58,10 +58,17 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <None Remove="Assets\coffee.png" />
     <None Remove="Pages\InfoPage.xaml" />
     <None Remove="Pages\SettingsPage.xaml" />
     <None Remove="Pages\TargetsPage.xaml" />
     <None Remove="Styles\PageStyles.xaml" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Update="Assets\coffee.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
   </ItemGroup>
 
   <ItemGroup>

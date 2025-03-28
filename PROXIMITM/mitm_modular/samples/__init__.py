@@ -1,0 +1,1 @@
+# Sample directory for example code snippets and static responses 
