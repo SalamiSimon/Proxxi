@@ -99,9 +99,11 @@
                                 </StackPanel>
                             </StackPanel>
                         </Border>
-                        
+                                                
                         <!-- Toggle Enable/Disable Switch -->
                         <ToggleSwitch Grid.Column="1" 
+                                      MinWidth="0"
+                                      Width="60"
                                       Margin="8,0,0,0"
                                       IsOn="{Binding IsEnabled, Mode=TwoWay}"
                                       OffContent=""
@@ -112,13 +114,13 @@
                         
                         <!-- Edit Button -->
                         <Button Grid.Column="2" 
-                                Margin="8,0,0,0" 
+                                Margin="-8,0,0,0" 
                                 ToolTipService.ToolTip="Edit" 
                                 Tag="{Binding}"
                                 Click="EditTargetButton_Click">
                             <FontIcon Glyph="&#xE70F;" FontSize="16"/>
                         </Button>
-                        
+
                         <!-- Delete Button -->
                         <Button Grid.Column="3" 
                                 Margin="8,0,0,0" 
@@ -182,18 +184,31 @@
                     </ComboBox>
                 </StackPanel>
                 
-                <!-- Response Type -->
+                <!-- Response Type (horizontal) -->
                 <StackPanel Spacing="8">
                     <TextBlock Text="Response Type:" FontWeight="SemiBold"/>
-                    <RadioButtons x:Name="ResponseTypeRadioButtons" SelectionChanged="ResponseTypeRadioButtons_SelectionChanged">
-                        <RadioButton x:Name="StaticResponseRadioButton" Content="Static Response" GroupName="ResponseType" IsChecked="True"/>
-                        <RadioButton x:Name="DynamicResponseRadioButton" Content="Dynamic Response" GroupName="ResponseType"/>
-                    </RadioButtons>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <RadioButton Grid.Column="0" x:Name="NoModificationRadioButton" Content="No Modification" GroupName="ResponseType" IsChecked="True" Checked="NoModificationRadioButton_Checked"/>
+                        <RadioButton Grid.Column="1" x:Name="StaticResponseRadioButton" Content="Static Response" GroupName="ResponseType" Checked="StaticResponseRadioButton_Checked"/>
+                        <RadioButton Grid.Column="2" x:Name="DynamicResponseRadioButton" Content="Dynamic Response" GroupName="ResponseType" Checked="DynamicResponseRadioButton_Checked"/>
+                    </Grid>
                 </StackPanel>
                 
                 <!-- Static Response Text Area -->
                 <StackPanel x:Name="StaticResponsePanel" Spacing="8">
-                    <TextBlock Text="Static JSON Response:" FontWeight="SemiBold"/>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" Text="Static JSON Response:" FontWeight="SemiBold"/>
+                        <Button Grid.Column="1" x:Name="StaticSampleButton" Content="View Sample" Click="StaticSampleButton_Click"/>
+                    </Grid>
                     <TextBox x:Name="StaticResponseTextBox" 
                             AcceptsReturn="True" 
                             TextWrapping="Wrap" 
@@ -205,28 +220,52 @@
                 
                 <!-- Dynamic Response Text Area (hidden initially) -->
                 <StackPanel x:Name="DynamicResponsePanel" Spacing="8" Visibility="Collapsed">
-                    <TextBlock Text="Dynamic Response Script:" FontWeight="SemiBold"/>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" Text="Dynamic Response Script:" FontWeight="SemiBold"/>
+                        <Button Grid.Column="1" x:Name="DynamicSampleButton" Content="View Sample" Click="DynamicSampleButton_Click"/>
+                    </Grid>
                     <TextBox x:Name="DynamicResponseTextBox" 
                             AcceptsReturn="True" 
                             TextWrapping="Wrap" 
                             MinHeight="150"
                             MaxHeight="300"
                             ScrollViewer.VerticalScrollBarVisibility="Auto"
-                            FontFamily="Consolas">
-                        <TextBox.Text>def handle_wemod_response(flow: http.HTTPFlow) -> None:
-    content_type = flow.response.headers.get("Content-Type", "").lower()
-    if "application/json" not in content_type:
-        return
-    try:
-        response_data = json.loads(flow.response.content)
-        #Temp
-        new_content = json.dumps(response_data).encode("utf-8")
-        flow.response.content = new_content
-        flow.response.headers["Content-Length"] = str(len(new_content))
-        flow.response.headers["Content-Type"] = content_type</TextBox.Text>
-                    </TextBox>
+                            FontFamily="Consolas"
+                            PlaceholderText="Enter Python code to modify the response dynamically..."/>
                 </StackPanel>
             </StackPanel>
+        </ContentDialog>
+        
+        <!-- Sample Static Response Dialog -->
+        <ContentDialog x:Name="StaticSampleDialog"
+                       Title="Static Response Sample"
+                       CloseButtonText="Close"
+                       DefaultButton="Close">
+            <ScrollViewer MaxHeight="500">
+                <TextBox x:Name="StaticSampleTextBox" 
+                         IsReadOnly="True" 
+                         AcceptsReturn="True" 
+                         TextWrapping="Wrap"
+                         FontFamily="Consolas"/>
+            </ScrollViewer>
+        </ContentDialog>
+        
+        <!-- Sample Dynamic Response Dialog -->
+        <ContentDialog x:Name="DynamicSampleDialog"
+                       Title="Dynamic Response Sample"
+                       CloseButtonText="Close"
+                       DefaultButton="Close">
+            <ScrollViewer MaxHeight="500">
+                <TextBox x:Name="DynamicSampleTextBox" 
+                         IsReadOnly="True" 
+                         AcceptsReturn="True" 
+                         TextWrapping="Wrap"
+                         FontFamily="Consolas"/>
+            </ScrollViewer>
         </ContentDialog>
     </Grid>
 </Page> 

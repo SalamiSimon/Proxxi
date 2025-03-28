@@ -60,7 +60,7 @@
                 </NavigationView.MenuItems>
             </NavigationView>
 
-            <!-- Content Frame  ControlAltFillColorTransparentBrush  -->
+            <!-- Content Frame  ControlAltFillColorTransparentBrush LayerOnAcrylicFillColorDefaultBrush -->
             <Frame x:Name="ContentFrame" 
                    Grid.Column="1" 
                    Background="{ThemeResource LayerOnAcrylicFillColorDefaultBrush   }"/>

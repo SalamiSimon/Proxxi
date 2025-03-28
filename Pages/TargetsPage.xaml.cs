@@ -26,6 +26,7 @@ namespace WinUI_V3.Pages
         // HARDCODED PATHS - TEMPORARY
         private readonly string DbPath = @"C:\Users\Sten\Desktop\PROXIMITM\targets.db";
         private readonly string ModularPath = @"C:\Users\Sten\Desktop\PROXIMITM\mitm_modular";
+        private readonly string SamplesPath = @"C:\Users\Sten\Desktop\PROXIMITM\mitm_modular\samples";
 
         public TargetsPage()
         {
@@ -33,17 +34,30 @@ namespace WinUI_V3.Pages
             {
                 this.InitializeComponent();
                 
+                // Register for Loaded event to ensure UI elements are fully initialized
+                this.Loaded += TargetsPage_Loaded;
+                
                 // Set the data context for the list view
                 TargetsListView.ItemsSource = Targets;
-                
-                // Load targets when the page is initialized
-                LoadTargets();
             }
             catch (Exception ex)
             {
                 // Log the exception but don't crash
                 Debug.WriteLine($"Error initializing TargetsPage: {ex.Message}");
                 ShowErrorMessage("Initialization Error", $"Failed to initialize the page: {ex.Message}");
+            }
+        }
+
+        private void TargetsPage_Loaded(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                // Load targets when the page is fully loaded
+                LoadTargets();
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error in TargetsPage_Loaded: {ex.Message}");
             }
         }
 
@@ -355,29 +369,42 @@ namespace WinUI_V3.Pages
                 }
                 
                 // Reset dialog fields
-                TargetUrlTextBox.Text = string.Empty;
-                HttpStatusComboBox.SelectedIndex = 0; // Default to "Any Status"
-                TargetHttpStatusComboBox.SelectedIndex = 0; // Default to "No Change"
-                StaticResponseRadioButton.IsChecked = true;
-                StaticResponseTextBox.Text = string.Empty;
-                DynamicResponseTextBox.Text = @"def handle_response(flow: http.HTTPFlow) -> None:
-    content_type = flow.response.headers.get(""Content-Type"", """").lower()
-    if ""application/json"" not in content_type:
-        return
-    try:
-        response_data = json.loads(flow.response.content)
-
-        #Dynamic response logic here
-
-        new_content = json.dumps(response_data).encode(""utf-8"")
-        flow.response.content = new_content
-        flow.response.headers[""Content-Length""] = str(len(new_content))
-        flow.response.headers[""Content-Type""] = content_type";
+                if (TargetUrlTextBox != null)
+                    TargetUrlTextBox.Text = string.Empty;
+                
+                if (HttpStatusComboBox != null)
+                    HttpStatusComboBox.SelectedIndex = 0; // Default to "Any Status"
+                
+                if (TargetHttpStatusComboBox != null)
+                    TargetHttpStatusComboBox.SelectedIndex = 0; // Default to "No Change"
+                
+                if (StaticResponseRadioButton != null)
+                    StaticResponseRadioButton.IsChecked = true;
+                
+                if (NoModificationRadioButton != null)
+                    NoModificationRadioButton.IsChecked = false;
+                
+                if (DynamicResponseRadioButton != null)
+                    DynamicResponseRadioButton.IsChecked = false;
+                
+                if (StaticResponseTextBox != null)
+                    StaticResponseTextBox.Text = string.Empty;
+                
+                if (DynamicResponseTextBox != null)
+                    DynamicResponseTextBox.Text = string.Empty;
+                
+                // Set initial visibility
+                if (StaticResponsePanel != null)
+                    StaticResponsePanel.Visibility = Visibility.Visible;
+                
+                if (DynamicResponsePanel != null)
+                    DynamicResponsePanel.Visibility = Visibility.Collapsed;
                 
                 CurrentEditingItem = null;
                 
                 // Show the dialog
-                await AddTargetDialog.ShowAsync();
+                if (AddTargetDialog != null)
+                    await AddTargetDialog.ShowAsync();
             }
             catch (Exception ex)
             {
@@ -409,60 +436,97 @@ namespace WinUI_V3.Pages
                     }
                     
                     // Populate dialog with existing values
-                    TargetUrlTextBox.Text = targetItem.TargetUrl;
+                    if (TargetUrlTextBox != null)
+                        TargetUrlTextBox.Text = targetItem.TargetUrl;
                     
                     // Find and select the matching HTTP status
-                    if (!string.IsNullOrEmpty(targetItem.HttpStatus))
+                    if (HttpStatusComboBox != null)
                     {
-                        foreach (ComboBoxItem item in HttpStatusComboBox.Items)
+                        if (!string.IsNullOrEmpty(targetItem.HttpStatus))
                         {
-                            if (item.Tag.ToString() == targetItem.HttpStatus)
+                            foreach (ComboBoxItem item in HttpStatusComboBox.Items)
                             {
-                                HttpStatusComboBox.SelectedItem = item;
-                                break;
+                                if (item.Tag.ToString() == targetItem.HttpStatus)
+                                {
+                                    HttpStatusComboBox.SelectedItem = item;
+                                    break;
+                                }
                             }
                         }
-                    }
-                    else
-                    {
-                        // Set to "Any Status"
-                        HttpStatusComboBox.SelectedIndex = 0;
+                        else
+                        {
+                            // Set to "Any Status"
+                            HttpStatusComboBox.SelectedIndex = 0;
+                        }
                     }
                     
                     // Find and select the matching target HTTP status
-                    if (!string.IsNullOrEmpty(targetItem.TargetHttpStatus))
+                    if (TargetHttpStatusComboBox != null)
                     {
-                        foreach (ComboBoxItem item in TargetHttpStatusComboBox.Items)
+                        if (!string.IsNullOrEmpty(targetItem.TargetHttpStatus))
                         {
-                            if (item.Tag.ToString() == targetItem.TargetHttpStatus)
+                            foreach (ComboBoxItem item in TargetHttpStatusComboBox.Items)
                             {
-                                TargetHttpStatusComboBox.SelectedItem = item;
-                                break;
+                                if (item.Tag.ToString() == targetItem.TargetHttpStatus)
+                                {
+                                    TargetHttpStatusComboBox.SelectedItem = item;
+                                    break;
+                                }
                             }
                         }
-                    }
-                    else
-                    {
-                        // Set to "No Change"
-                        TargetHttpStatusComboBox.SelectedIndex = 0;
+                        else
+                        {
+                            // Set to "No Change"
+                            TargetHttpStatusComboBox.SelectedIndex = 0;
+                        }
                     }
                     
                     // Set response type
-                    if (targetItem.IsStaticResponse)
+                    if (targetItem.ResponseContent == null || targetItem.ResponseContent.Trim() == string.Empty)
                     {
-                        StaticResponseRadioButton.IsChecked = true;
-                        StaticResponseTextBox.Text = targetItem.ResponseContent;
+                        if (NoModificationRadioButton != null)
+                            NoModificationRadioButton.IsChecked = true;
+                        
+                        if (StaticResponsePanel != null)
+                            StaticResponsePanel.Visibility = Visibility.Collapsed;
+                        
+                        if (DynamicResponsePanel != null)
+                            DynamicResponsePanel.Visibility = Visibility.Collapsed;
+                    }
+                    else if (targetItem.IsStaticResponse)
+                    {
+                        if (StaticResponseRadioButton != null)
+                            StaticResponseRadioButton.IsChecked = true;
+                        
+                        if (StaticResponsePanel != null)
+                            StaticResponsePanel.Visibility = Visibility.Visible;
+                        
+                        if (DynamicResponsePanel != null)
+                            DynamicResponsePanel.Visibility = Visibility.Collapsed;
+                        
+                        if (StaticResponseTextBox != null)
+                            StaticResponseTextBox.Text = targetItem.ResponseContent;
                     }
                     else
                     {
-                        DynamicResponseRadioButton.IsChecked = true;
-                        DynamicResponseTextBox.Text = targetItem.ResponseContent;
+                        if (DynamicResponseRadioButton != null)
+                            DynamicResponseRadioButton.IsChecked = true;
+                        
+                        if (StaticResponsePanel != null)
+                            StaticResponsePanel.Visibility = Visibility.Collapsed;
+                        
+                        if (DynamicResponsePanel != null)
+                            DynamicResponsePanel.Visibility = Visibility.Visible;
+                        
+                        if (DynamicResponseTextBox != null)
+                            DynamicResponseTextBox.Text = targetItem.ResponseContent;
                     }
                     
                     CurrentEditingItem = targetItem;
                     
                     // Show the dialog
-                    await AddTargetDialog.ShowAsync();
+                    if (AddTargetDialog != null)
+                        await AddTargetDialog.ShowAsync();
                 }
             }
             catch (Exception ex)
@@ -596,16 +660,51 @@ namespace WinUI_V3.Pages
             }
         }
 
+        // Update the radio button selection changed handler to handle our new layout
         private void ResponseTypeRadioButtons_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            // This method is deprecated - individual radio button Checked events are used instead
+            Debug.WriteLine("ResponseTypeRadioButtons_SelectionChanged called but is deprecated");
+        }
+        
+        // Handle radio button checked state changes
+        private void NoModificationRadioButton_Checked(object sender, RoutedEventArgs e)
+        {
+            try 
+            {
+                if (NoModificationRadioButton?.IsChecked == true && StaticResponsePanel != null && DynamicResponsePanel != null)
+                {
+                    StaticResponsePanel.Visibility = Visibility.Collapsed;
+                    DynamicResponsePanel.Visibility = Visibility.Collapsed;
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error in NoModificationRadioButton_Checked: {ex.Message}");
+            }
+        }
+        
+        private void StaticResponseRadioButton_Checked(object sender, RoutedEventArgs e)
         {
             try
             {
-                if (StaticResponseRadioButton.IsChecked == true)
+                if (StaticResponseRadioButton?.IsChecked == true && StaticResponsePanel != null && DynamicResponsePanel != null)
                 {
                     StaticResponsePanel.Visibility = Visibility.Visible;
                     DynamicResponsePanel.Visibility = Visibility.Collapsed;
                 }
-                else
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error in StaticResponseRadioButton_Checked: {ex.Message}");
+            }
+        }
+        
+        private void DynamicResponseRadioButton_Checked(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                if (DynamicResponseRadioButton?.IsChecked == true && StaticResponsePanel != null && DynamicResponsePanel != null)
                 {
                     StaticResponsePanel.Visibility = Visibility.Collapsed;
                     DynamicResponsePanel.Visibility = Visibility.Visible;
@@ -613,7 +712,62 @@ namespace WinUI_V3.Pages
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"Error changing response type: {ex.Message}");
+                Debug.WriteLine($"Error in DynamicResponseRadioButton_Checked: {ex.Message}");
+            }
+        }
+        
+        // Sample button click handlers
+        private async void StaticSampleButton_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                string samplePath = Path.Combine(SamplesPath, "static.json");
+                
+                if (File.Exists(samplePath))
+                {
+                    string sampleContent = await File.ReadAllTextAsync(samplePath);
+                    if (StaticSampleTextBox != null)
+                        StaticSampleTextBox.Text = sampleContent;
+                    
+                    if (StaticSampleDialog != null)
+                        await StaticSampleDialog.ShowAsync();
+                }
+                else
+                {
+                    ShowErrorMessage("Sample Not Found", $"Could not find the sample file at: {samplePath}");
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error showing static sample: {ex.Message}");
+                ShowErrorMessage("Error", $"Failed to show static sample: {ex.Message}");
+            }
+        }
+        
+        private async void DynamicSampleButton_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                string samplePath = Path.Combine(SamplesPath, "dynamic.py");
+                
+                if (File.Exists(samplePath))
+                {
+                    string sampleContent = await File.ReadAllTextAsync(samplePath);
+                    if (DynamicSampleTextBox != null)
+                        DynamicSampleTextBox.Text = sampleContent;
+                    
+                    if (DynamicSampleDialog != null)
+                        await DynamicSampleDialog.ShowAsync();
+                }
+                else
+                {
+                    ShowErrorMessage("Sample Not Found", $"Could not find the sample file at: {samplePath}");
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error showing dynamic sample: {ex.Message}");
+                ShowErrorMessage("Error", $"Failed to show dynamic sample: {ex.Message}");
             }
         }
 
@@ -622,6 +776,12 @@ namespace WinUI_V3.Pages
             try
             {
                 // Get values from the dialog
+                if (TargetUrlTextBox == null)
+                {
+                    args.Cancel = true;
+                    return;
+                }
+                
                 string targetUrl = TargetUrlTextBox.Text.Trim();
                 if (string.IsNullOrEmpty(targetUrl))
                 {
@@ -630,13 +790,35 @@ namespace WinUI_V3.Pages
                 }
                 
                 // Get match HTTP status and target HTTP status
-                string httpStatus = (HttpStatusComboBox.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "Any";
-                string targetHttpStatus = (TargetHttpStatusComboBox.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "NoChange";
+                string httpStatus = "Any";
+                if (HttpStatusComboBox?.SelectedItem is ComboBoxItem httpStatusItem && httpStatusItem.Tag != null)
+                {
+                    httpStatus = httpStatusItem.Tag.ToString();
+                }
                 
-                bool isStaticResponse = StaticResponseRadioButton.IsChecked == true;
-                string responseContent = isStaticResponse ? 
-                    StaticResponseTextBox.Text : 
-                    DynamicResponseTextBox.Text;
+                string targetHttpStatus = "NoChange";
+                if (TargetHttpStatusComboBox?.SelectedItem is ComboBoxItem targetStatusItem && targetStatusItem.Tag != null)
+                {
+                    targetHttpStatus = targetStatusItem.Tag.ToString();
+                }
+                
+                // Determine the response type
+                bool isNoModification = NoModificationRadioButton?.IsChecked == true;
+                bool isStaticResponse = StaticResponseRadioButton?.IsChecked == true;
+                
+                string responseContent = string.Empty;
+                
+                if (!isNoModification)
+                {
+                    if (isStaticResponse && StaticResponseTextBox != null)
+                    {
+                        responseContent = StaticResponseTextBox.Text;
+                    }
+                    else if (DynamicResponseTextBox != null)
+                    {
+                        responseContent = DynamicResponseTextBox.Text;
+                    }
+                }
                     
                 // Validate JSON if this is a static response
                 if (isStaticResponse && !string.IsNullOrWhiteSpace(responseContent))
@@ -660,47 +842,51 @@ namespace WinUI_V3.Pages
                     await RunCliCommandAsync("delete", CurrentEditingItem.Id.ToString());
                 }
                 
-                // Prepare the arguments for the add command
-                var args_list = new List<string> {
-                    "add",
-                    $"\"{targetUrl}\"",
-                    "--type", isStaticResponse ? "static" : "dynamic"
-                };
-                
-                // Add the status code if not "Any"
-                if (httpStatus != "Any")
+                // Skip adding if it's a no modification target (since the CLI doesn't support this yet)
+                if (!isNoModification)
                 {
-                    args_list.Add("--status");
-                    args_list.Add(httpStatus);
+                    // Prepare the arguments for the add command
+                    var args_list = new List<string> {
+                        "add",
+                        $"\"{targetUrl}\"",
+                        "--type", isStaticResponse ? "static" : "dynamic"
+                    };
+                    
+                    // Add the status code if not "Any"
+                    if (httpStatus != "Any")
+                    {
+                        args_list.Add("--status");
+                        args_list.Add(httpStatus);
+                    }
+                    
+                    // Add the target status code if not "NoChange"
+                    if (targetHttpStatus != "NoChange")
+                    {
+                        args_list.Add("--target-status");
+                        args_list.Add(targetHttpStatus);
+                    }
+                    
+                    // Add content based on the type
+                    if (isStaticResponse)
+                    {
+                        // Create a temporary file for the JSON response
+                        string tempFile = Path.GetTempFileName();
+                        await File.WriteAllTextAsync(tempFile, responseContent ?? "{}");
+                        args_list.Add("--response-file");
+                        args_list.Add(tempFile);
+                    }
+                    else
+                    {
+                        // Create a temporary file for the Python code
+                        string tempFile = Path.GetTempFileName();
+                        await File.WriteAllTextAsync(tempFile, responseContent ?? string.Empty);
+                        args_list.Add("--code-file");
+                        args_list.Add(tempFile);
+                    }
+                    
+                    // Run the CLI command
+                    await RunCliCommandAsync(args_list[0], args_list.Skip(1).ToArray());
                 }
-                
-                // Add the target status code if not "NoChange"
-                if (targetHttpStatus != "NoChange")
-                {
-                    args_list.Add("--target-status");
-                    args_list.Add(targetHttpStatus);
-                }
-                
-                // Add content based on the type
-                if (isStaticResponse)
-                {
-                    // Create a temporary file for the JSON response
-                    string tempFile = Path.GetTempFileName();
-                    await File.WriteAllTextAsync(tempFile, responseContent ?? "{}");
-                    args_list.Add("--response-file");
-                    args_list.Add(tempFile);
-                }
-                else
-                {
-                    // Create a temporary file for the Python code
-                    string tempFile = Path.GetTempFileName();
-                    await File.WriteAllTextAsync(tempFile, responseContent ?? string.Empty);
-                    args_list.Add("--code-file");
-                    args_list.Add(tempFile);
-                }
-                
-                // Run the CLI command
-                await RunCliCommandAsync(args_list[0], args_list.Skip(1).ToArray());
                 
                 // Reload the targets
                 LoadTargets();
