@@ -35,6 +35,7 @@
             <helpers:BoolToStringConverter x:Key="BoolToStringConverter"/>
             <helpers:BoolToColorConverter x:Key="BoolToColorConverter"/>
             <helpers:BoolToStyleConverter x:Key="BoolToStyleConverter"/>
+            <helpers:NumberToBooleanConverter x:Key="NumberToBooleanConverter"/>
             
             <!-- Other app resources here -->
         </ResourceDictionary>

@@ -13,6 +13,7 @@ namespace WinUI_V3.Pages
         // HARDCODED PATHS - TEMPORARY
         private readonly string DbPath = @"C:\Users\Sten\Desktop\PROXIMITM\targets.db";
         private readonly string ModularPath = @"C:\Users\Sten\Desktop\PROXIMITM\mitm_modular";
+        private readonly string RootModularPath = @"C:\Users\Sten\Desktop\PROXIMITM";
         
         // Process for the proxy server
         private Process? _proxyProcess = null;
@@ -47,27 +48,33 @@ namespace WinUI_V3.Pages
         {
             try
             {
-                // Use a simple command to check if the proxy is running
-                var startInfo = new ProcessStartInfo
-                {
-                    FileName = "python",
-                    Arguments = $"-m mitm_modular.cli status",
-                    WorkingDirectory = Path.GetDirectoryName(ModularPath),
-                    UseShellExecute = false,
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true,
-                    CreateNoWindow = true
-                };
+                // Look for mitmdump processes
+                var mitmdumpProcesses = Process.GetProcessesByName("mitmdump");
                 
-                using (var process = new Process { StartInfo = startInfo })
+                foreach (var process in mitmdumpProcesses)
                 {
-                    process.Start();
-                    string output = await process.StandardOutput.ReadToEndAsync();
-                    await process.WaitForExitAsync();
-                    
-                    // Check if the output indicates the proxy is running
-                    return output.Contains("running") && !output.Contains("not running");
+                    try
+                    {
+                        // Check if the command line contains our script
+                        var processModule = process.MainModule?.FileName;
+                        if (processModule != null && processModule.Contains("mitmdump"))
+                        {
+                            // Found a running mitmdump process
+                            return true;
+                        }
+                    }
+                    catch
+                    {
+                        // Ignore errors when trying to access process information
+                    }
+                    finally
+                    {
+                        process.Dispose();
+                    }
                 }
+                
+                // No matching process found
+                return false;
             }
             catch (Exception ex)
             {
@@ -113,23 +120,26 @@ namespace WinUI_V3.Pages
                     return;
                 }
                 
-                // Start the proxy process
+                // Full path to the mitm_core.py file
+                string mitm_core_path = Path.Combine(RootModularPath, "run_mitm.py");
+                
+                // Start the proxy process - directly using mitmdump
                 var startInfo = new ProcessStartInfo
                 {
-                    FileName = "python",
-                    Arguments = $"-m mitm_modular.cli start",
-                    WorkingDirectory = Path.GetDirectoryName(ModularPath),
+                    FileName = "mitmdump",
+                    Arguments = $"-s \"{mitm_core_path}\" --set block_global=false",
+                    WorkingDirectory = Path.GetDirectoryName(RootModularPath),
                     UseShellExecute = false,
                     RedirectStandardOutput = true,
                     RedirectStandardError = true,
-                    CreateNoWindow = true
+                    CreateNoWindow = true  // Hide the window
                 };
                 
                 _proxyProcess = new Process { StartInfo = startInfo };
                 _proxyProcess.Start();
                 
                 // Wait a bit to make sure it starts correctly
-                await Task.Delay(1000);
+                await Task.Delay(2000);
                 
                 // Check if it's running
                 if (!await IsProxyRunning())
@@ -154,29 +164,49 @@ namespace WinUI_V3.Pages
                     return;
                 }
                 
-                // Stop the proxy process
-                var startInfo = new ProcessStartInfo
-                {
-                    FileName = "python",
-                    Arguments = $"-m mitm_modular.cli stop",
-                    WorkingDirectory = Path.GetDirectoryName(ModularPath),
-                    UseShellExecute = false,
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true,
-                    CreateNoWindow = true
-                };
+                // Find and kill all mitmdump processes
+                var mitmdumpProcesses = Process.GetProcessesByName("mitmdump");
                 
-                using (var process = new Process { StartInfo = startInfo })
+                foreach (var process in mitmdumpProcesses)
                 {
-                    process.Start();
-                    await process.WaitForExitAsync();
+                    try
+                    {
+                        var processModule = process.MainModule?.FileName;
+                        if (processModule != null && processModule.Contains("mitmdump"))
+                        {
+                            // Kill the process
+                            process.Kill();
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Debug.WriteLine($"Error killing process: {ex.Message}");
+                    }
+                    finally
+                    {
+                        process.Dispose();
+                    }
                 }
                 
                 // Cleanup the process reference
                 if (_proxyProcess != null)
                 {
-                    _proxyProcess.Dispose();
-                    _proxyProcess = null;
+                    try
+                    {
+                        if (!_proxyProcess.HasExited)
+                        {
+                            _proxyProcess.Kill();
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Debug.WriteLine($"Error killing proxy process: {ex.Message}");
+                    }
+                    finally
+                    {
+                        _proxyProcess.Dispose();
+                        _proxyProcess = null;
+                    }
                 }
                 
                 // Wait a bit to make sure it stops correctly
@@ -185,7 +215,7 @@ namespace WinUI_V3.Pages
                 // Check if it's still running
                 if (await IsProxyRunning())
                 {
-                    throw new Exception("Proxy failed to stop");
+                    throw new Exception("Proxy failed to stop. Some processes may need to be terminated manually.");
                 }
             }
             catch (Exception ex)
@@ -236,7 +266,8 @@ namespace WinUI_V3.Pages
             try
             {
                 // Create a batch file or shortcut in the Windows startup folder
-                string startupCommand = $"python -m mitm_modular.cli start";
+                string mitm_core_path = Path.Combine(ModularPath, "run_mitm.py");
+                string startupCommand = $"mitmdump -s \"{mitm_core_path}\" --set block_global=false";
                 string startupPath = Path.Combine(
                     Environment.GetFolderPath(Environment.SpecialFolder.Startup),
                     "MitmModular.bat");
@@ -333,7 +364,13 @@ exit";
                 using (var process = new Process { StartInfo = startInfo })
                 {
                     process.Start();
+                    string output = await process.StandardOutput.ReadToEndAsync();
+                    string error = await process.StandardError.ReadToEndAsync();
                     await process.WaitForExitAsync();
+                    
+                    Debug.WriteLine($"Delete all output: {output}");
+                    if (!string.IsNullOrEmpty(error))
+                        Debug.WriteLine($"Delete all error: {error}");
                     
                     if (process.ExitCode == 0)
                     {
@@ -341,7 +378,7 @@ exit";
                     }
                     else
                     {
-                        throw new Exception("Failed to delete all targets");
+                        throw new Exception($"Failed to delete all targets. Error: {error}");
                     }
                 }
             }
@@ -376,6 +413,69 @@ exit";
                 // Reset the button
                 CheckUpdatesButton.IsEnabled = true;
                 CheckUpdatesButton.Content = "Check Now";
+            }
+        }
+        
+        private async void InstallCertButton_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                // Set the button to loading state
+                InstallCertButton.IsEnabled = false;
+                InstallCertButton.Content = "Installing...";
+                
+                // Find the certificate path in the user's .mitmproxy folder
+                string userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+                string mitmproxyDir = Path.Combine(userProfile, ".mitmproxy");
+                string certPath = Path.Combine(mitmproxyDir, "mitmproxy-ca-cert.cer");
+                
+                // Check if certificate exists
+                if (!File.Exists(certPath))
+                {
+                    // Certificate not found, show error
+                    await ShowErrorDialog("Certificate Not Found", 
+                        $"Certificate file not found at {certPath}. Please run mitmproxy or mitmdump first to generate the certificate.");
+                    return;
+                }
+                
+                // Create and run the certutil command
+                var startInfo = new ProcessStartInfo
+                {
+                    FileName = "certutil",
+                    Arguments = $"-addstore root \"{certPath}\"",
+                    UseShellExecute = true,  // Show UAC prompt
+                    Verb = "runas",          // Request elevation
+                    CreateNoWindow = false   // Show the console window for user confirmation
+                };
+                
+                using (var process = new Process { StartInfo = startInfo })
+                {
+                    process.Start();
+                    await process.WaitForExitAsync();
+                    
+                    if (process.ExitCode == 0)
+                    {
+                        await ShowInfoDialog("Certificate Installed", 
+                            "The mitmproxy certificate has been successfully installed. " +
+                            "HTTPS interception should now work properly.");
+                    }
+                    else
+                    {
+                        await ShowErrorDialog("Installation Failed", 
+                            "Failed to install the certificate. Please try running the application as administrator.");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error installing certificate: {ex.Message}");
+                await ShowErrorDialog("Certificate Error", $"Failed to install certificate: {ex.Message}");
+            }
+            finally
+            {
+                // Reset the button
+                InstallCertButton.IsEnabled = true;
+                InstallCertButton.Content = "Install Certificate";
             }
         }
         

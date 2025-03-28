@@ -111,4 +111,41 @@ namespace WinUI_V3.Helpers
             throw new NotImplementedException();
         }
     }
+
+    /// <summary>
+    /// Converts a number to Visibility based on whether it equals the parameter value or not.
+    /// If the value equals the parameter, returns Collapsed, otherwise returns Visible.
+    /// Used to hide UI elements for placeholder items (with Id=0).
+    /// </summary>
+    public class NumberToBooleanConverter : IValueConverter
+    {
+        public object Convert(object value, Type targetType, object parameter, string language)
+        {
+            try
+            {
+                // Parse the parameter value (expected to be the number to compare against)
+                if (parameter is string paramString && int.TryParse(paramString, out int paramValue))
+                {
+                    // Parse the input value
+                    if (value is int intValue)
+                    {
+                        // If the values are equal, return Collapsed
+                        return intValue != paramValue ? Visibility.Visible : Visibility.Collapsed;
+                    }
+                }
+                
+                // Default to Visible if anything goes wrong
+                return Visibility.Visible;
+            }
+            catch
+            {
+                return Visibility.Visible;
+            }
+        }
+
+        public object ConvertBack(object value, Type targetType, object parameter, string language)
+        {
+            throw new NotImplementedException();
+        }
+    }
 } 

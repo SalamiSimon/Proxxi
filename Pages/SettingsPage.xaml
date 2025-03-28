@@ -67,6 +67,28 @@
                             HorizontalAlignment="Right"
                             MinWidth="100"/>
                 </Grid>
+                
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto" MinWidth="120"/>
+                    </Grid.ColumnDefinitions>
+                    
+                    <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                        <TextBlock Text="HTTPS Certificate" 
+                                   Style="{StaticResource BodyStrongTextBlockStyle}"/>
+                        <TextBlock Text="Install mitmproxy certificate for HTTPS interception" 
+                                   Style="{StaticResource CaptionTextBlockStyle}" 
+                                   Opacity="0.7"/>
+                    </StackPanel>
+                    
+                    <Button Grid.Column="1" 
+                            x:Name="InstallCertButton" 
+                            Content="Install Certificate" 
+                            Click="InstallCertButton_Click"
+                            HorizontalAlignment="Right"
+                            MinWidth="120"/>
+                </Grid>
             </StackPanel>
 
             <!-- Target Management -->

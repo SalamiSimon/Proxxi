@@ -70,7 +70,9 @@
                                 <TextBlock Text="{Binding TargetUrl}" 
                                        VerticalAlignment="Center" 
                                        TextWrapping="Wrap"/>
-                                <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                                <StackPanel Orientation="Horizontal" 
+                                            Margin="0,4,0,0"
+                                            Visibility="{Binding Id, Converter={StaticResource NumberToBooleanConverter}, ConverterParameter=0, FallbackValue=Visible}">
                                     <TextBlock Text="Type: " 
                                                FontSize="12" 
                                                Opacity="0.7"/>
@@ -110,14 +112,16 @@
                                       OnContent=""
                                       ToolTipService.ToolTip="Enable/Disable Target"
                                       Tag="{Binding}"
-                                      Toggled="EnableSwitch_Toggled"/>
+                                      Toggled="EnableSwitch_Toggled"
+                                      Visibility="{Binding Id, Converter={StaticResource NumberToBooleanConverter}, ConverterParameter=0, FallbackValue=Visible}"/>
                         
                         <!-- Edit Button -->
                         <Button Grid.Column="2" 
                                 Margin="-8,0,0,0" 
                                 ToolTipService.ToolTip="Edit" 
                                 Tag="{Binding}"
-                                Click="EditTargetButton_Click">
+                                Click="EditTargetButton_Click"
+                                Visibility="{Binding Id, Converter={StaticResource NumberToBooleanConverter}, ConverterParameter=0, FallbackValue=Visible}">
                             <FontIcon Glyph="&#xE70F;" FontSize="16"/>
                         </Button>
 
@@ -126,7 +130,8 @@
                                 Margin="8,0,0,0" 
                                 ToolTipService.ToolTip="Delete" 
                                 Tag="{Binding}"
-                                Click="DeleteTargetButton_Click">
+                                Click="DeleteTargetButton_Click"
+                                Visibility="{Binding Id, Converter={StaticResource NumberToBooleanConverter}, ConverterParameter=0, FallbackValue=Visible}">
                             <FontIcon Glyph="&#xE74D;" FontSize="16"/>
                         </Button>
                     </Grid>
@@ -144,7 +149,7 @@
             <StackPanel Spacing="16" Width="500">
                 <!-- Target URL -->
                 <StackPanel Spacing="8">
-                    <TextBlock Text="Target URL:" FontWeight="SemiBold"/>
+                    <TextBlock Text="Target URL or Match String:" FontWeight="SemiBold"/>
                     <TextBox x:Name="TargetUrlTextBox" PlaceholderText="https://example.com/api/endpoint"/>
                 </StackPanel>
                 
@@ -205,9 +210,11 @@
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
                         <TextBlock Grid.Column="0" Text="Static JSON Response:" FontWeight="SemiBold"/>
-                        <Button Grid.Column="1" x:Name="StaticSampleButton" Content="View Sample" Click="StaticSampleButton_Click"/>
+                        <Button Grid.Column="1" x:Name="StaticFullScreenButton" Content="Fullscreen" Margin="0,0,8,0" Click="StaticFullScreenButton_Click"/>
+                        <Button Grid.Column="2" x:Name="StaticSampleButton" Content="View Sample" Click="StaticSampleButton_Click"/>
                     </Grid>
                     <TextBox x:Name="StaticResponseTextBox" 
                             AcceptsReturn="True" 
@@ -224,9 +231,11 @@
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
                         <TextBlock Grid.Column="0" Text="Dynamic Response Script:" FontWeight="SemiBold"/>
-                        <Button Grid.Column="1" x:Name="DynamicSampleButton" Content="View Sample" Click="DynamicSampleButton_Click"/>
+                        <Button Grid.Column="1" x:Name="DynamicFullScreenButton" Content="Fullscreen" Margin="0,0,8,0" Click="DynamicFullScreenButton_Click"/>
+                        <Button Grid.Column="2" x:Name="DynamicSampleButton" Content="View Sample" Click="DynamicSampleButton_Click"/>
                     </Grid>
                     <TextBox x:Name="DynamicResponseTextBox" 
                             AcceptsReturn="True" 
@@ -266,6 +275,40 @@
                          TextWrapping="Wrap"
                          FontFamily="Consolas"/>
             </ScrollViewer>
+        </ContentDialog>
+
+        <!-- Fullscreen Static Response Dialog -->
+        <ContentDialog x:Name="StaticFullScreenDialog"
+                       Title="Edit Static Response"
+                       PrimaryButtonText="Apply"
+                       CloseButtonText="Cancel"
+                       DefaultButton="Primary"
+                       PrimaryButtonClick="StaticFullScreenDialog_PrimaryButtonClick">
+            <Grid Width="800" Height="600">
+                <TextBox x:Name="StaticFullScreenTextBox" 
+                         AcceptsReturn="True" 
+                         TextWrapping="Wrap"
+                         FontFamily="Consolas"
+                         PlaceholderText="Paste your JSON response here..."
+                         ScrollViewer.VerticalScrollBarVisibility="Auto"/>
+            </Grid>
+        </ContentDialog>
+        
+        <!-- Fullscreen Dynamic Response Dialog -->
+        <ContentDialog x:Name="DynamicFullScreenDialog"
+                       Title="Edit Dynamic Response"
+                       PrimaryButtonText="Apply"
+                       CloseButtonText="Cancel"
+                       DefaultButton="Primary"
+                       PrimaryButtonClick="DynamicFullScreenDialog_PrimaryButtonClick">
+            <Grid Width="800" Height="600">
+                <TextBox x:Name="DynamicFullScreenTextBox" 
+                         AcceptsReturn="True" 
+                         TextWrapping="Wrap"
+                         FontFamily="Consolas"
+                         PlaceholderText="Enter Python code to modify the response dynamically..."
+                         ScrollViewer.VerticalScrollBarVisibility="Auto"/>
+            </Grid>
         </ContentDialog>
     </Grid>
 </Page> 

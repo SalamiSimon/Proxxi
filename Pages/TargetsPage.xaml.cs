@@ -721,6 +721,12 @@ namespace WinUI_V3.Pages
         {
             try
             {
+                // First close the parent dialog to avoid multiple open dialogs
+                if (AddTargetDialog != null)
+                {
+                    AddTargetDialog.Hide();
+                }
+                
                 string samplePath = Path.Combine(SamplesPath, "static.json");
                 
                 if (File.Exists(samplePath))
@@ -729,17 +735,48 @@ namespace WinUI_V3.Pages
                     if (StaticSampleTextBox != null)
                         StaticSampleTextBox.Text = sampleContent;
                     
+                    // Show the sample dialog
                     if (StaticSampleDialog != null)
-                        await StaticSampleDialog.ShowAsync();
+                    {
+                        ContentDialogResult result = await StaticSampleDialog.ShowAsync();
+                        
+                        // After the sample dialog is closed, re-open the add target dialog
+                        if (AddTargetDialog != null)
+                        {
+                            await AddTargetDialog.ShowAsync();
+                        }
+                    }
                 }
                 else
                 {
+                    // If we can't find the sample file, first re-open the parent dialog
+                    if (AddTargetDialog != null)
+                    {
+                        await AddTargetDialog.ShowAsync();
+                    }
+                    
+                    // Then show the error message
                     ShowErrorMessage("Sample Not Found", $"Could not find the sample file at: {samplePath}");
                 }
             }
             catch (Exception ex)
             {
                 Debug.WriteLine($"Error showing static sample: {ex.Message}");
+                
+                // Make sure the parent dialog is re-opened
+                try
+                {
+                    if (AddTargetDialog != null)
+                    {
+                        await AddTargetDialog.ShowAsync();
+                    }
+                }
+                catch (Exception dialogEx)
+                {
+                    Debug.WriteLine($"Error re-opening add target dialog: {dialogEx.Message}");
+                }
+                
+                // Then show the error message
                 ShowErrorMessage("Error", $"Failed to show static sample: {ex.Message}");
             }
         }
@@ -748,6 +785,12 @@ namespace WinUI_V3.Pages
         {
             try
             {
+                // First close the parent dialog to avoid multiple open dialogs
+                if (AddTargetDialog != null)
+                {
+                    AddTargetDialog.Hide();
+                }
+                
                 string samplePath = Path.Combine(SamplesPath, "dynamic.py");
                 
                 if (File.Exists(samplePath))
@@ -756,17 +799,48 @@ namespace WinUI_V3.Pages
                     if (DynamicSampleTextBox != null)
                         DynamicSampleTextBox.Text = sampleContent;
                     
+                    // Show the sample dialog
                     if (DynamicSampleDialog != null)
-                        await DynamicSampleDialog.ShowAsync();
+                    {
+                        ContentDialogResult result = await DynamicSampleDialog.ShowAsync();
+                        
+                        // After the sample dialog is closed, re-open the add target dialog
+                        if (AddTargetDialog != null)
+                        {
+                            await AddTargetDialog.ShowAsync();
+                        }
+                    }
                 }
                 else
                 {
+                    // If we can't find the sample file, first re-open the parent dialog
+                    if (AddTargetDialog != null)
+                    {
+                        await AddTargetDialog.ShowAsync();
+                    }
+                    
+                    // Then show the error message
                     ShowErrorMessage("Sample Not Found", $"Could not find the sample file at: {samplePath}");
                 }
             }
             catch (Exception ex)
             {
                 Debug.WriteLine($"Error showing dynamic sample: {ex.Message}");
+                
+                // Make sure the parent dialog is re-opened
+                try
+                {
+                    if (AddTargetDialog != null)
+                    {
+                        await AddTargetDialog.ShowAsync();
+                    }
+                }
+                catch (Exception dialogEx)
+                {
+                    Debug.WriteLine($"Error re-opening add target dialog: {dialogEx.Message}");
+                }
+                
+                // Then show the error message
                 ShowErrorMessage("Error", $"Failed to show dynamic sample: {ex.Message}");
             }
         }
@@ -785,6 +859,7 @@ namespace WinUI_V3.Pages
                 string targetUrl = TargetUrlTextBox.Text.Trim();
                 if (string.IsNullOrEmpty(targetUrl))
                 {
+                    ShowErrorMessage("Invalid Input", "Target URL or Match String cannot be empty.");
                     args.Cancel = true;
                     return;
                 }
@@ -812,11 +887,16 @@ namespace WinUI_V3.Pages
                 {
                     if (isStaticResponse && StaticResponseTextBox != null)
                     {
-                        responseContent = StaticResponseTextBox.Text;
+                        responseContent = StaticResponseTextBox.Text.Trim();
+                        // If it's empty, set it to a valid empty JSON object
+                        if (string.IsNullOrWhiteSpace(responseContent))
+                        {
+                            responseContent = "{}";
+                        }
                     }
                     else if (DynamicResponseTextBox != null)
                     {
-                        responseContent = DynamicResponseTextBox.Text;
+                        responseContent = DynamicResponseTextBox.Text.Trim();
                     }
                 }
                     
@@ -838,64 +918,141 @@ namespace WinUI_V3.Pages
                 
                 if (CurrentEditingItem != null && CurrentEditingItem.Id != 0)
                 {
-                    // Delete the existing target and add a new one (since there's no direct edit function in CLI)
-                    await RunCliCommandAsync("delete", CurrentEditingItem.Id.ToString());
+                    try
+                    {
+                        // Delete the existing target and add a new one (since there's no direct edit function in CLI)
+                        await RunCliCommandAsync("delete", CurrentEditingItem.Id.ToString());
+                    }
+                    catch (Exception ex)
+                    {
+                        ShowErrorMessage("Error Deleting Target", $"Failed to delete existing target: {ex.Message}");
+                        args.Cancel = true;
+                        return;
+                    }
                 }
                 
-                // Skip adding if it's a no modification target (since the CLI doesn't support this yet)
-                if (!isNoModification)
+                // If we're only changing the status code (no modification to content)
+                if (isNoModification && targetHttpStatus != "NoChange")
                 {
-                    // Prepare the arguments for the add command
-                    var args_list = new List<string> {
-                        "add",
-                        $"\"{targetUrl}\"",
-                        "--type", isStaticResponse ? "static" : "dynamic"
-                    };
-                    
-                    // Add the status code if not "Any"
-                    if (httpStatus != "Any")
+                    try
                     {
-                        args_list.Add("--status");
-                        args_list.Add(httpStatus);
-                    }
-                    
-                    // Add the target status code if not "NoChange"
-                    if (targetHttpStatus != "NoChange")
-                    {
-                        args_list.Add("--target-status");
-                        args_list.Add(targetHttpStatus);
-                    }
-                    
-                    // Add content based on the type
-                    if (isStaticResponse)
-                    {
-                        // Create a temporary file for the JSON response
+                        // Create an empty static response for status-only modifications
+                        var args_list = new List<string> {
+                            "add",
+                            $"\"{targetUrl}\"",
+                            "--type", "static",
+                            "--target-status", targetHttpStatus
+                        };
+                        
+                        // Add the status code if not "Any"
+                        if (httpStatus != "Any")
+                        {
+                            args_list.Add("--status");
+                            args_list.Add(httpStatus);
+                        }
+                        
+                        // Add empty response
                         string tempFile = Path.GetTempFileName();
-                        await File.WriteAllTextAsync(tempFile, responseContent ?? "{}");
+                        await File.WriteAllTextAsync(tempFile, "{}");
                         args_list.Add("--response-file");
                         args_list.Add(tempFile);
+                        
+                        // Run the CLI command
+                        await RunCliCommandAsync(args_list[0], args_list.Skip(1).ToArray());
                     }
-                    else
+                    catch (Exception ex)
                     {
-                        // Create a temporary file for the Python code
-                        string tempFile = Path.GetTempFileName();
-                        await File.WriteAllTextAsync(tempFile, responseContent ?? string.Empty);
-                        args_list.Add("--code-file");
-                        args_list.Add(tempFile);
+                        ShowErrorMessage("Error Adding Target", $"Failed to add target with status code change: {ex.Message}");
+                        args.Cancel = true;
+                        return;
                     }
-                    
-                    // Run the CLI command
-                    await RunCliCommandAsync(args_list[0], args_list.Skip(1).ToArray());
+                }
+                // Handle normal content modifications
+                else if (!isNoModification)
+                {
+                    try
+                    {
+                        // Prepare the arguments for the add command
+                        var args_list = new List<string> {
+                            "add",
+                            $"\"{targetUrl}\"",
+                            "--type", isStaticResponse ? "static" : "dynamic"
+                        };
+                        
+                        // Add the status code if not "Any"
+                        if (httpStatus != "Any")
+                        {
+                            args_list.Add("--status");
+                            args_list.Add(httpStatus);
+                        }
+                        
+                        // Add the target status code if not "NoChange"
+                        if (targetHttpStatus != "NoChange")
+                        {
+                            args_list.Add("--target-status");
+                            args_list.Add(targetHttpStatus);
+                        }
+                        
+                        // Add content based on the type
+                        if (isStaticResponse)
+                        {
+                            // Create a temporary file for the JSON response
+                            string tempFile = Path.GetTempFileName();
+                            await File.WriteAllTextAsync(tempFile, responseContent ?? "{}");
+                            args_list.Add("--response-file");
+                            args_list.Add(tempFile);
+                        }
+                        else
+                        {
+                            // Create a temporary file for the Python code
+                            string tempFile = Path.GetTempFileName();
+                            await File.WriteAllTextAsync(tempFile, responseContent ?? string.Empty);
+                            args_list.Add("--code-file");
+                            args_list.Add(tempFile);
+                        }
+                        
+                        // Run the CLI command
+                        await RunCliCommandAsync(args_list[0], args_list.Skip(1).ToArray());
+                    }
+                    catch (Exception ex)
+                    {
+                        // Check for specific JSON errors in the exception message
+                        if (ex.Message.Contains("Invalid JSON") || ex.Message.Contains("JSONDecodeError"))
+                        {
+                            ShowErrorMessage("Invalid JSON", "The static response contains invalid JSON. Please check your JSON format.");
+                        }
+                        else
+                        {
+                            ShowErrorMessage("Error Adding Target", $"Failed to add target: {ex.Message}");
+                        }
+                        args.Cancel = true;
+                        return;
+                    }
+                }
+                else if (isNoModification && targetHttpStatus == "NoChange")
+                {
+                    // No changes selected - show a message
+                    ShowErrorMessage("No Changes Selected", "Please select either a response modification or a status code change.");
+                    args.Cancel = true;
+                    return;
                 }
                 
                 // Reload the targets
-                LoadTargets();
-                
-                // If we had a placeholder, remove it
-                var placeholder = Targets.FirstOrDefault(t => t.Id == 0);
-                if (placeholder != null)
+                try
                 {
-                    Targets.Remove(placeholder);
+                    LoadTargets();
+                    
+                    // If we had a placeholder, remove it
+                    var placeholder = Targets.FirstOrDefault(t => t.Id == 0);
+                    if (placeholder != null)
+                    {
+                        Targets.Remove(placeholder);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"Error reloading targets after add: {ex.Message}");
+                    // Continue anyway since the target was probably added successfully
                 }
             }
             catch (Exception ex)
@@ -903,6 +1060,144 @@ namespace WinUI_V3.Pages
                 Debug.WriteLine($"Error saving target: {ex.Message}");
                 ShowErrorMessage("Error Saving Target", $"Failed to save target: {ex.Message}");
                 args.Cancel = true;
+            }
+        }
+
+        // Fullscreen button click handlers
+        private async void StaticFullScreenButton_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                // First close the parent dialog to avoid multiple open dialogs
+                if (AddTargetDialog != null)
+                {
+                    AddTargetDialog.Hide();
+                }
+                
+                // Copy content from regular textbox to fullscreen textbox
+                if (StaticResponseTextBox != null && StaticFullScreenTextBox != null)
+                {
+                    StaticFullScreenTextBox.Text = StaticResponseTextBox.Text;
+                }
+                
+                // Show the fullscreen dialog
+                if (StaticFullScreenDialog != null)
+                {
+                    ContentDialogResult result = await StaticFullScreenDialog.ShowAsync();
+                    
+                    // After the fullscreen dialog is closed, re-open the add target dialog
+                    if (AddTargetDialog != null)
+                    {
+                        await AddTargetDialog.ShowAsync();
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error showing fullscreen static editor: {ex.Message}");
+                
+                // Make sure the parent dialog is re-opened
+                try
+                {
+                    if (AddTargetDialog != null)
+                    {
+                        await AddTargetDialog.ShowAsync();
+                    }
+                }
+                catch (Exception dialogEx)
+                {
+                    Debug.WriteLine($"Error re-opening add target dialog: {dialogEx.Message}");
+                }
+                
+                // Then show the error message
+                ShowErrorMessage("Error", $"Failed to show fullscreen editor: {ex.Message}");
+            }
+        }
+        
+        private async void DynamicFullScreenButton_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                // First close the parent dialog to avoid multiple open dialogs
+                if (AddTargetDialog != null)
+                {
+                    AddTargetDialog.Hide();
+                }
+                
+                // Copy content from regular textbox to fullscreen textbox
+                if (DynamicResponseTextBox != null && DynamicFullScreenTextBox != null)
+                {
+                    DynamicFullScreenTextBox.Text = DynamicResponseTextBox.Text;
+                }
+                
+                // Show the fullscreen dialog
+                if (DynamicFullScreenDialog != null)
+                {
+                    ContentDialogResult result = await DynamicFullScreenDialog.ShowAsync();
+                    
+                    // After the fullscreen dialog is closed, re-open the add target dialog
+                    if (AddTargetDialog != null)
+                    {
+                        await AddTargetDialog.ShowAsync();
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error showing fullscreen dynamic editor: {ex.Message}");
+                
+                // Make sure the parent dialog is re-opened
+                try
+                {
+                    if (AddTargetDialog != null)
+                    {
+                        await AddTargetDialog.ShowAsync();
+                    }
+                }
+                catch (Exception dialogEx)
+                {
+                    Debug.WriteLine($"Error re-opening add target dialog: {dialogEx.Message}");
+                }
+                
+                // Then show the error message
+                ShowErrorMessage("Error", $"Failed to show fullscreen editor: {ex.Message}");
+            }
+        }
+        
+        // Fullscreen dialog primary button click handlers
+        private void StaticFullScreenDialog_PrimaryButtonClick(ContentDialog sender, ContentDialogButtonClickEventArgs args)
+        {
+            try
+            {
+                // Copy content from fullscreen textbox back to regular textbox
+                if (StaticResponseTextBox != null && StaticFullScreenTextBox != null)
+                {
+                    StaticResponseTextBox.Text = StaticFullScreenTextBox.Text;
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error applying fullscreen static content: {ex.Message}");
+                args.Cancel = true;
+                ShowErrorMessage("Error", $"Failed to apply changes: {ex.Message}");
+            }
+        }
+        
+        private void DynamicFullScreenDialog_PrimaryButtonClick(ContentDialog sender, ContentDialogButtonClickEventArgs args)
+        {
+            try
+            {
+                // Copy content from fullscreen textbox back to regular textbox
+                if (DynamicResponseTextBox != null && DynamicFullScreenTextBox != null)
+                {
+                    DynamicResponseTextBox.Text = DynamicFullScreenTextBox.Text;
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error applying fullscreen dynamic content: {ex.Message}");
+                args.Cancel = true;
+                ShowErrorMessage("Error", $"Failed to apply changes: {ex.Message}");
             }
         }
     }

@@ -8,10 +8,10 @@
     Style="{StaticResource SettingsPageStyle}">
 
     <ScrollViewer Padding="20,0,20,20">
-        <StackPanel Spacing="24" MaxWidth="600" HorizontalAlignment="Center">
+        <StackPanel Spacing="24" MaxWidth="800" HorizontalAlignment="Center">
             <!-- App Title and Version -->
             <StackPanel Spacing="8" Margin="0,40,0,20">
-                <TextBlock Text="Response Modifier" 
+                <TextBlock Text="PROXIMITM" 
                            FontSize="32" 
                            FontWeight="SemiBold" 
                            HorizontalAlignment="Center"/>
@@ -42,30 +42,120 @@
             <!-- Divider -->
             <Rectangle Height="1" Fill="{ThemeResource DividerStrokeColorDefaultBrush}"/>
             
-            <!-- Instructions -->
-            <StackPanel Spacing="12" Margin="0,8,0,0">
-                <TextBlock Text="Instructions" 
-                           FontSize="20" 
-                           FontWeight="SemiBold" 
-                           HorizontalAlignment="Center"
-                           Margin="0,0,0,8"/>
-                
-                <TextBox x:Name="InstructionsTextBox"
-                         IsReadOnly="True"
-                         TextWrapping="Wrap"
-                         AcceptsReturn="True"
-                         Height="180"
-                         Padding="12"
-                         PlaceholderText="Instructions will be shown here."
-                         Text="Response Modifier allows you to intercept and modify HTTP responses.
-                         
-1. Configure the proxy server in Settings
-2. Add targets in the Targets page
-3. Enable the targets you want to modify
-4. Start the proxy server
-                         
-For more detailed instructions, visit the GitHub repository."/>
-            </StackPanel>
+            <!-- About Section -->
+            <Border Background="{ThemeResource CardBackgroundFillColorSecondaryBrush}" 
+                    CornerRadius="8" Padding="16">
+                <StackPanel Spacing="16">
+                    <TextBlock Text="About PROXIMITM" 
+                               FontSize="20"
+                               FontWeight="SemiBold"
+                               HorizontalAlignment="Left"/>
+                    
+                    <TextBlock TextWrapping="Wrap">
+                        PROXIMITM is a local HTTP/HTTPS proxy server that allows you to intercept and modify API responses. 
+                        Built on the mitmproxy library, it provides a simple interface to create and manage target rules
+                        for specific URLs, modifying their responses with either static JSON or dynamic Python code.
+                    </TextBlock>
+                </StackPanel>
+            </Border>
+            
+            <!-- How It Works Section -->
+            <Border Background="{ThemeResource CardBackgroundFillColorSecondaryBrush}" 
+                    CornerRadius="8" Padding="16">
+                <StackPanel Spacing="16">
+                    <TextBlock Text="How It Works" 
+                               FontSize="20"
+                               FontWeight="SemiBold"
+                               HorizontalAlignment="Left"/>
+                    
+                    <TextBlock TextWrapping="Wrap" Margin="0,0,0,8">
+                        When enabled, the proxy server intercepts HTTP/HTTPS traffic and applies modifications 
+                        based on your defined target rules.
+                    </TextBlock>
+                    
+                    <StackPanel Spacing="8">
+                        <TextBlock TextWrapping="Wrap">• Configure your applications to use proxy address <Run FontWeight="SemiBold">127.0.0.1:8080</Run></TextBlock>
+                        <TextBlock TextWrapping="Wrap">• For system-wide proxy redirection, consider using tools like <Run FontWeight="SemiBold">Proxifier</Run></TextBlock>
+                        <TextBlock TextWrapping="Wrap">• For HTTPS traffic, you need to install the mitmproxy certificate - run <Run FontFamily="Consolas">mitmdump</Run> in a terminal and follow the instructions at <Run FontFamily="Consolas">mitm.it</Run></TextBlock>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+            
+            <!-- Features Section -->
+            <Border Background="{ThemeResource CardBackgroundFillColorSecondaryBrush}" 
+                    CornerRadius="8" Padding="16">
+                <StackPanel Spacing="16">
+                    <TextBlock Text="Features" 
+                               FontSize="20"
+                               FontWeight="SemiBold"
+                               HorizontalAlignment="Left"/>
+                    
+                    <StackPanel Spacing="8">
+                        <TextBlock TextWrapping="Wrap">• URL matching with exact matches or regular expressions</TextBlock>
+                        <TextBlock TextWrapping="Wrap">• Static JSON response replacement</TextBlock>
+                        <TextBlock TextWrapping="Wrap">• Dynamic Python code for complex modifications</TextBlock>
+                        <TextBlock TextWrapping="Wrap">• HTTP status code matching and modification</TextBlock>
+                        <TextBlock TextWrapping="Wrap">• Enable/disable individual targets</TextBlock>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+            
+            <!-- Limitations Section -->
+            <Border Background="{ThemeResource CardBackgroundFillColorSecondaryBrush}" 
+                    CornerRadius="8" Padding="16">
+                <StackPanel Spacing="16">
+                    <TextBlock Text="Current Limitations" 
+                               FontSize="20"
+                               FontWeight="SemiBold"
+                               HorizontalAlignment="Left"/>
+                    
+                    <StackPanel Spacing="8">
+                        <TextBlock TextWrapping="Wrap">• Only modifies JSON responses, not other content types</TextBlock>
+                        <TextBlock TextWrapping="Wrap">• Cannot modify HTTP headers</TextBlock>
+                        <TextBlock TextWrapping="Wrap">• No filtering by POST/GET request types</TextBlock>
+                        <TextBlock TextWrapping="Wrap">• Cannot modify outgoing requests</TextBlock>
+                        <TextBlock TextWrapping="Wrap">• Cannot intercept WebSocket connections</TextBlock>
+                        <TextBlock TextWrapping="Wrap">• Cannot intercept its own traffic (requests sent by this application)</TextBlock>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+            
+            <!-- Important Notes Section -->
+            <Border Background="{ThemeResource CardBackgroundFillColorSecondaryBrush}" 
+                    CornerRadius="8" Padding="16">
+                <StackPanel Spacing="16">
+                    <TextBlock Text="Important Notes" 
+                               FontSize="20"
+                               FontWeight="SemiBold"
+                               HorizontalAlignment="Left"/>
+                    
+                    <StackPanel Spacing="8">
+                        <TextBlock TextWrapping="Wrap">• This application uses mitmproxy and may conflict with other applications using the same proxy port (8080)</TextBlock>
+                        <TextBlock TextWrapping="Wrap">• Dynamic response modifications use Python code execution - use with caution</TextBlock>
+                        <TextBlock TextWrapping="Wrap">• Your browser may warn about certificate issues when intercepting HTTPS traffic - this is normal</TextBlock>
+                        <TextBlock TextWrapping="Wrap">• For best results, use the fullscreen editor when writing complex JSON or Python code</TextBlock>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+            
+            <!-- Quick Start Section -->
+            <Border Background="{ThemeResource CardBackgroundFillColorSecondaryBrush}" 
+                    CornerRadius="8" Padding="16">
+                <StackPanel Spacing="16">
+                    <TextBlock Text="Quick Start" 
+                               FontSize="20"
+                               FontWeight="SemiBold"
+                               HorizontalAlignment="Left"/>
+                    
+                    <StackPanel Spacing="8">
+                        <TextBlock TextWrapping="Wrap">1. Configure your software to use the proxy (127.0.0.1:8080)</TextBlock>
+                        <TextBlock TextWrapping="Wrap">2. Install the mitmproxy certificate if using HTTPS</TextBlock>
+                        <TextBlock TextWrapping="Wrap">3. Add targets in the Targets page</TextBlock>
+                        <TextBlock TextWrapping="Wrap">4. Start the proxy in the Settings page</TextBlock>
+                        <TextBlock TextWrapping="Wrap">5. Monitor traffic and see your modifications in action</TextBlock>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
             
             <!-- GitHub Button -->
             <HyperlinkButton Content="View on GitHub"
