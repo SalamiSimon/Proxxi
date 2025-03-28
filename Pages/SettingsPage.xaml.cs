@@ -13,7 +13,6 @@ namespace WinUI_V3.Pages
     public sealed partial class SettingsPage : Page
     {
         // HARDCODED PATHS - TEMPORARY
-        private readonly string DbPath = @"C:\Users\Sten\Desktop\PROXIMITM\targets.db";
         private readonly string ModularPath = @"C:\Users\Sten\Desktop\PROXIMITM\mitm_modular";
         private readonly string RootModularPath = @"C:\Users\Sten\Desktop\PROXIMITM";
         
@@ -57,28 +56,40 @@ namespace WinUI_V3.Pages
                 
                 if (processes.Length > 0)
                 {
-                    return true;
+                    // Found mitmdump processes, now check if they're responding
+                    using (var client = new HttpClient(new HttpClientHandler
+                    {
+                        Proxy = new WebProxy("http://127.0.0.1:8080"),
+                        UseProxy = true
+                    }))
+                    {
+                        client.Timeout = TimeSpan.FromSeconds(5); // Increase timeout from 2s to 5s
+                        try
+                        {
+                            // Make a request to a reliable URL - we don't care about the response
+                            var response = await client.GetAsync("http://example.com");
+                            return true;
+                        }
+                        catch (HttpRequestException)
+                        {
+                            // HTTP-specific errors might still mean the proxy is running
+                            return true;
+                        }
+                        catch (TaskCanceledException)
+                        {
+                            // Timeout - proxy might be starting up but not ready
+                            Debug.WriteLine("Proxy check timed out - might be starting up");
+                            return processes.Length > 0; // If we found processes, assume it's starting
+                        }
+                        catch (Exception ex)
+                        {
+                            Debug.WriteLine($"Error checking proxy connection: {ex.GetType().Name}: {ex.Message}");
+                            return false;
+                        }
+                    }
                 }
                 
-                // Also check if the proxy is responding at 127.0.0.1:8080
-                using (var client = new HttpClient(new HttpClientHandler
-                {
-                    Proxy = new WebProxy("http://127.0.0.1:8080"),
-                    UseProxy = true
-                }))
-                {
-                    client.Timeout = TimeSpan.FromSeconds(2);
-                    try
-                    {
-                        // Make a request to a reliable URL - we don't care about the response
-                        var response = await client.GetAsync("http://example.com");
-                        return true;
-                    }
-                    catch
-                    {
-                        return false;
-                    }
-                }
+                return false;
             }
             catch (Exception ex)
             {
@@ -177,14 +188,20 @@ namespace WinUI_V3.Pages
                 _proxyProcess = new Process { StartInfo = startInfo };
                 _proxyProcess.Start();
                 
-                // Wait a bit to make sure it starts correctly
-                await Task.Delay(2000);
+                // Wait longer to make sure it starts correctly - increase from 2s to 5s
+                await Task.Delay(5000);
                 
-                // Check if it's running
-                if (!await IsProxyRunning())
+                // Try multiple times to check if it's running
+                for (int i = 0; i < 3; i++) 
                 {
-                    throw new Exception("Proxy failed to start");
+                    if (await IsProxyRunning())
+                    {
+                        return; // Success
+                    }
+                    await Task.Delay(1000); // Wait an additional second between retries
                 }
+                
+                throw new Exception("Proxy failed to start after multiple attempts");
             }
             catch (Exception ex)
             {

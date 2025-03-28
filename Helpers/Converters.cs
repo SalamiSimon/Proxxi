@@ -104,7 +104,8 @@ namespace WinUI_V3.Helpers
                 }
             }
             
-            return null;
+            // Return an empty Style object instead of null
+            return DependencyProperty.UnsetValue;
         }
 
         public object ConvertBack(object value, Type targetType, object parameter, string language)

@@ -273,15 +273,15 @@ namespace WinUI_V3.Pages
                                 var targetItem = new TargetItem
                                 {
                                     Id = target["id"].GetInt32(),
-                                    TargetUrl = target["url"].GetString(),
+                                    TargetUrl = target["url"].GetString() ?? string.Empty,
                                     HttpStatus = target["status_code"].ValueKind == JsonValueKind.Null ? null : target["status_code"].GetInt32().ToString(),
                                     TargetHttpStatus = target["target_status_code"].ValueKind == JsonValueKind.Null ? null : target["target_status_code"].GetInt32().ToString(),
-                                    ModificationType = modType,
+                                    ModificationType = modType ?? "static",
                                     IsStaticResponse = modType == "static",
                                     IsNoModification = modType == "none",
                                     ResponseContent = modType == "dynamic" 
-                                        ? target["dynamic_code"].GetString() 
-                                        : (modType == "static" ? target["static_response"].GetString() : string.Empty),
+                                        ? target["dynamic_code"].GetString() ?? string.Empty 
+                                        : (modType == "static" ? target["static_response"].GetString() ?? string.Empty : string.Empty),
                                     IsEnabled = target["is_enabled"].GetInt32() == 1
                                 };
 
@@ -906,13 +906,13 @@ namespace WinUI_V3.Pages
                 string httpStatus = "Any";
                 if (HttpStatusComboBox?.SelectedItem is ComboBoxItem httpStatusItem && httpStatusItem.Tag != null)
                 {
-                    httpStatus = httpStatusItem.Tag.ToString();
+                    httpStatus = httpStatusItem.Tag.ToString() ?? "Any";
                 }
                 
                 string targetHttpStatus = "NoChange";
                 if (TargetHttpStatusComboBox?.SelectedItem is ComboBoxItem targetStatusItem && targetStatusItem.Tag != null)
                 {
-                    targetHttpStatus = targetStatusItem.Tag.ToString();
+                    targetHttpStatus = targetStatusItem.Tag.ToString() ?? "NoChange";
                 }
                 
                 // Determine the response type
@@ -994,7 +994,7 @@ namespace WinUI_V3.Pages
                         if (httpStatus != "Any")
                         {
                             args_list.Add("--status");
-                            args_list.Add(httpStatus);
+                            args_list.Add(httpStatus ?? "Any");
                         }
                         
                         // Run the CLI command
@@ -1023,14 +1023,14 @@ namespace WinUI_V3.Pages
                         if (httpStatus != "Any")
                         {
                             args_list.Add("--status");
-                            args_list.Add(httpStatus);
+                            args_list.Add(httpStatus ?? "Any");
                         }
                         
                         // Add the target status code if not "NoChange"
                         if (targetHttpStatus != "NoChange")
                         {
                             args_list.Add("--target-status");
-                            args_list.Add(targetHttpStatus);
+                            args_list.Add(targetHttpStatus ?? "NoChange");
                         }
                         
                         // Add content based on the type
