@@ -1,17 +1,8 @@
 using System;
-using System.Collections.Generic;
-using System.IO;
 using System.Linq;
-using System.Runtime.InteropServices.WindowsRuntime;
-using Windows.Foundation;
-using Windows.Foundation.Collections;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
-using Microsoft.UI.Xaml.Controls.Primitives;
-using Microsoft.UI.Xaml.Data;
-using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
-using Microsoft.UI.Xaml.Navigation;
 using System.Diagnostics;
 using WinUI_V3.Pages;
 using System.Threading.Tasks;
@@ -29,15 +20,25 @@ namespace WinUI_V3
         public MainWindow()
         {
             this.InitializeComponent();
-            Title = "Response modifier for Proxifier";
+            Title = "Proxxi";
             ExtendsContentIntoTitleBar = true;
             SetTitleBar(TitleBarArea);
 
-            // Set the window size
+            // Set up the window with fixed size
             var windowHandle = WinRT.Interop.WindowNative.GetWindowHandle(this);
             var windowId = Microsoft.UI.Win32Interop.GetWindowIdFromWindow(windowHandle);
             var appWindow = Microsoft.UI.Windowing.AppWindow.GetFromWindowId(windowId);
-            appWindow.Resize(new Windows.Graphics.SizeInt32 { Width = 800, Height = 800 });
+            
+            // Set fixed size of 800x800
+            appWindow.Resize(new Windows.Graphics.SizeInt32 { Width = 820, Height = 800 });
+            
+            // Prevent resizing by setting the window to non-resizable
+            var presenter = appWindow.Presenter as Microsoft.UI.Windowing.OverlappedPresenter;
+            if (presenter != null)
+            {
+                presenter.IsResizable = false;
+                presenter.IsMaximizable = false;
+            }
 
             // Set up navigation
             NavView.SelectionChanged += NavView_SelectionChanged;
@@ -111,11 +112,7 @@ namespace WinUI_V3
 
         private void UpdateContentMargins()
         {
-            // This method could be used to adjust any additional margins or layout properties
-            // if needed, depending on the pane state
-            
-            // For most cases, WinUI's NavigationView handles this automatically
-            // but you can add custom adjustments here if necessary
+            // WinUI's NavigationView handles margins automatically
         }
 
         private async void CoffeeButton_Click(object sender, RoutedEventArgs e)
@@ -132,7 +129,6 @@ namespace WinUI_V3
         
         private async Task ShowCoffeeDialog()
         {
-            // Create the coffee donation dialog
             var coffeeDialog = new ContentDialog
             {
                 Title = "Support me",
@@ -143,21 +139,18 @@ namespace WinUI_V3
                 DefaultButton = ContentDialogButton.Primary
             };
             
-            // Create content for the dialog
             var content = new StackPanel
             {
                 Spacing = 16,
                 Margin = new Thickness(0, 12, 0, 0)
             };
             
-            // Add thank you message
             content.Children.Add(new TextBlock
             {
-                Text = "Thank you for considering a donation! Your support helps maintain and improve PROXIMITM.",
+                Text = "Thank you for considering a donation! Your support helps maintain and improve Proxxi.",
                 TextWrapping = TextWrapping.Wrap
             });
             
-            // Add perks section
             var perksPanel = new StackPanel
             {
                 Spacing = 8,
@@ -203,21 +196,16 @@ namespace WinUI_V3
             perksPanel.Children.Add(perksList);
             content.Children.Add(perksPanel);
             
-            // Set the content
             coffeeDialog.Content = content;
             
-            // Show the dialog and get result
             var result = await coffeeDialog.ShowAsync();
             
-            // Handle the result
             if (result == ContentDialogResult.Primary)
             {
-                // Donate button clicked
                 LaunchDonationPage();
             }
             else if (result == ContentDialogResult.Secondary)
             {
-                // Activate License Key button clicked
                 await ShowLicenseKeyDialog();
             }
         }
@@ -226,10 +214,9 @@ namespace WinUI_V3
         {
             try
             {
-                // Launch the default browser with the donation URL
                 var startInfo = new ProcessStartInfo
                 {
-                    FileName = "https://buymeacoffee.com/placeholder",
+                    FileName = "https://buymeacoffee.com/SalamiSimon",
                     UseShellExecute = true
                 };
                 
@@ -309,7 +296,7 @@ namespace WinUI_V3
                 var thankYouDialog = new ContentDialog
                 {
                     Title = "Thank You!",
-                    Content = "Your license has been activated. Thank you for supporting PROXIMITM!",
+                    Content = "Your license has been activated. Thank you for supporting Proxxi!",
                     CloseButtonText = "OK",
                     XamlRoot = this.Content.XamlRoot
                 };

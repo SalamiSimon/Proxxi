@@ -4,7 +4,6 @@ using Microsoft.UI.Xaml.Data;
 using Microsoft.UI.Xaml.Media;
 using System;
 using System.Globalization;
-using Windows.UI;
 
 namespace WinUI_V3.Helpers
 {

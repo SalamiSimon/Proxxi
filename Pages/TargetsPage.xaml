@@ -42,7 +42,8 @@
                     x:Name="ServerStatusIndicator" 
                     CornerRadius="4" 
                     Padding="12,8" 
-                    Background="{ThemeResource CardBackgroundFillColorSecondaryBrush}">
+                    Background="{ThemeResource CardBackgroundFillColorSecondaryBrush}"
+                    ToolTipService.ToolTip="Server is running and ready to intercept traffic on 127.0.0.1:45871">
                 <StackPanel Orientation="Horizontal" Spacing="8">
                     <Ellipse x:Name="StatusDot" 
                              Width="12" 

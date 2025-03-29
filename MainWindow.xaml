@@ -14,8 +14,8 @@
         </Grid.RowDefinitions>
 
         <!-- Title Bar -->
-        <Grid x:Name="TitleBarArea" Grid.Row="0" Background="Transparent">
-            <TextBlock Text="Response modifier for Proxifier" 
+        <Grid x:Name="TitleBarArea" Grid.Row="0" Background="{ThemeResource LayerOnAcrylicFillColorDefaultBrush}">
+            <TextBlock Text="Proxxi - Response modifier for Proxifier" 
                        FontSize="18"
                        FontWeight="SemiBold"
                        Margin="12,8,0,8"/>
@@ -90,7 +90,7 @@
             <!-- Content Frame  ControlAltFillColorTransparentBrush LayerOnAcrylicFillColorDefaultBrush -->
             <Frame x:Name="ContentFrame" 
                    Grid.Column="1" 
-                   Background="{ThemeResource LayerOnAcrylicFillColorDefaultBrush   }"/>
+                   Background="{ThemeResource LayerOnAcrylicFillColorDefaultBrush}"/>
         </Grid>
     </Grid>
 </Window>

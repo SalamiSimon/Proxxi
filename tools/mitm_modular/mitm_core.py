@@ -52,22 +52,17 @@ class ResponseModifier:
     def _apply_dynamic_modification(self, response_data: Dict[str, Any], 
                                    dynamic_code: str) -> Dict[str, Any]:
         """Apply dynamic code to modify the response data"""
-        # Create a local namespace with response_data available
         local_namespace = {"response_data": response_data}
         
-        # Execute the dynamic code with the response_data in its namespace
         try:
             exec(dynamic_code, {}, local_namespace)
-            # Return the potentially modified response_data
             return local_namespace["response_data"]
         except Exception as e:
             print(f"Error executing dynamic code: {e}")
-            # Return original data on error
             return response_data
     
     def response(self, flow: http.HTTPFlow) -> None:
         """Process HTTP responses"""
-        # Skip if no response
         if not flow.response:
             return
             
@@ -76,22 +71,17 @@ class ResponseModifier:
         if "application/json" not in content_type:
             return
             
-        # Find matching targets
         matching_targets = self._find_matching_targets(flow)
         if not matching_targets:
             return
             
         try:
-            # Handle the response based on the first matching target
-            # (Could be extended to apply multiple targets in sequence)
             target = matching_targets[0]
             
-            # Change the status code if requested
             if target['target_status_code'] is not None:
                 flow.response.status_code = target['target_status_code']
             
             if target['modification_type'] == 'static':
-                # Replace with static JSON response
                 try:
                     static_data = json.loads(target['static_response'])
                     flow.response.content = json.dumps(static_data).encode('utf-8')
@@ -100,17 +90,13 @@ class ResponseModifier:
                     print(f"Error: Static response is not valid JSON for target {target['id']}")
                     
             elif target['modification_type'] == 'dynamic':
-                # Apply dynamic modification
                 try:
-                    # Parse JSON response
                     response_data = json.loads(flow.response.content)
                     
-                    # Apply dynamic code
                     modified_data = self._apply_dynamic_modification(
                         response_data, target['dynamic_code']
                     )
                     
-                    # Update the response
                     flow.response.content = json.dumps(modified_data).encode('utf-8')
                     flow.response.headers["Content-Length"] = str(len(flow.response.content))
                 except json.JSONDecodeError:
@@ -121,7 +107,6 @@ class ResponseModifier:
         except Exception as e:
             print(f"Error handling response: {e}")
 
-# Mitmproxy addon class
 class MITMAddon:
     def __init__(self, db_path="targets.db"):
         self.modifier = ResponseModifier(db_path)
@@ -133,7 +118,6 @@ class MITMAddon:
     def reload(self) -> None:
         """Reload targets from the database"""
         self.modifier.reload_targets()
-
 
 # Addon instance for mitmproxy
 addon = MITMAddon()

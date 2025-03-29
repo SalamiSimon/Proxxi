@@ -11,7 +11,7 @@
         <StackPanel Spacing="24" MaxWidth="800" HorizontalAlignment="Center">
             <!-- App Title and Version -->
             <StackPanel Spacing="8" Margin="0,40,0,20">
-                <TextBlock Text="PROXIMITM" 
+                <TextBlock Text="Proxxi" 
                            FontSize="32" 
                            FontWeight="SemiBold" 
                            HorizontalAlignment="Center"/>
@@ -24,15 +24,16 @@
             
             <!-- Author Info -->
             <StackPanel Spacing="12" HorizontalAlignment="Center" Margin="0,0,0,24">
-                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
-                    <FontIcon FontFamily="{StaticResource SymbolThemeFontFamily}" 
-                              Glyph="&#xE946;" 
-                              FontSize="24" 
-                              Margin="0,0,8,0"
-                              VerticalAlignment="Center"/>
-                    <TextBlock Text="SalamiSimon" 
+                <StackPanel Orientation="Vertical" HorizontalAlignment="Center" Spacing="8">
+                    <Rectangle Width="80" Height="80" Margin="0,-20,0,15" RadiusX="20" RadiusY="20">
+                        <Rectangle.Fill>
+                            <ImageBrush ImageSource="/Assets/Square44x44Logo.altform-lightunplated_targetsize-256.png" Stretch="UniformToFill" />
+                        </Rectangle.Fill>
+                    </Rectangle>
+                    <TextBlock Text="by SalamiSimon" 
                                FontSize="22" 
-                               VerticalAlignment="Center"/>
+                               VerticalAlignment="Center"
+                               HorizontalAlignment="Center"/>
                 </StackPanel>
                 <TextBlock Text="https://github.com/SalamiSimon" 
                            Opacity="0.7" 
@@ -46,13 +47,13 @@
             <Border Background="{ThemeResource CardBackgroundFillColorSecondaryBrush}" 
                     CornerRadius="8" Padding="16">
                 <StackPanel Spacing="16">
-                    <TextBlock Text="About PROXIMITM" 
+                    <TextBlock Text="About Proxxi" 
                                FontSize="20"
                                FontWeight="SemiBold"
                                HorizontalAlignment="Left"/>
                     
                     <TextBlock TextWrapping="Wrap">
-                        PROXIMITM is a local HTTP/HTTPS proxy server that allows you to intercept and modify API responses. 
+                        Proxxi is a local HTTP/HTTPS proxy server that allows you to intercept and modify API responses. 
                         Built on the mitmproxy library, it provides a simple interface to create and manage target rules
                         for specific URLs, modifying their responses with either static JSON or dynamic Python code.
                     </TextBlock>
@@ -74,9 +75,9 @@
                     </TextBlock>
                     
                     <StackPanel Spacing="8">
-                        <TextBlock TextWrapping="Wrap">• Configure your applications to use proxy address <Run FontWeight="SemiBold">127.0.0.1:8080</Run></TextBlock>
+                        <TextBlock TextWrapping="Wrap">• Configure your applications to use proxy address <Run FontWeight="SemiBold">127.0.0.1:45871</Run></TextBlock>
                         <TextBlock TextWrapping="Wrap">• For system-wide proxy redirection, consider using tools like <Run FontWeight="SemiBold">Proxifier</Run></TextBlock>
-                        <TextBlock TextWrapping="Wrap">• For HTTPS traffic, you need to install the mitmproxy certificate - run <Run FontFamily="Consolas">mitmdump</Run> in a terminal and follow the instructions at <Run FontFamily="Consolas">mitm.it</Run></TextBlock>
+                        <TextBlock TextWrapping="Wrap">• For HTTPS traffic, you need to install the mitmproxy certificate by pressing the <Run FontFamily="Consolas">Install Certificate</Run> in Proxxi settings.</TextBlock>
                     </StackPanel>
                 </StackPanel>
             </Border>
@@ -115,7 +116,6 @@
                         <TextBlock TextWrapping="Wrap">• No filtering by POST/GET request types</TextBlock>
                         <TextBlock TextWrapping="Wrap">• Cannot modify outgoing requests</TextBlock>
                         <TextBlock TextWrapping="Wrap">• Cannot intercept WebSocket connections</TextBlock>
-                        <TextBlock TextWrapping="Wrap">• Cannot intercept its own traffic (requests sent by this application)</TextBlock>
                     </StackPanel>
                 </StackPanel>
             </Border>
@@ -130,10 +130,9 @@
                                HorizontalAlignment="Left"/>
                     
                     <StackPanel Spacing="8">
-                        <TextBlock TextWrapping="Wrap">• This application uses mitmproxy and may conflict with other applications using the same proxy port (8080)</TextBlock>
+                        <TextBlock TextWrapping="Wrap">• This application uses mitmproxy and may conflict with other applications using the same proxy port (45871)</TextBlock>
                         <TextBlock TextWrapping="Wrap">• Dynamic response modifications use Python code execution - use with caution</TextBlock>
                         <TextBlock TextWrapping="Wrap">• Your browser may warn about certificate issues when intercepting HTTPS traffic - this is normal</TextBlock>
-                        <TextBlock TextWrapping="Wrap">• For best results, use the fullscreen editor when writing complex JSON or Python code</TextBlock>
                     </StackPanel>
                 </StackPanel>
             </Border>
@@ -148,7 +147,7 @@
                                HorizontalAlignment="Left"/>
                     
                     <StackPanel Spacing="8">
-                        <TextBlock TextWrapping="Wrap">1. Configure your software to use the proxy (127.0.0.1:8080)</TextBlock>
+                        <TextBlock TextWrapping="Wrap">1. Configure your software to use the proxy (127.0.0.1:45871)</TextBlock>
                         <TextBlock TextWrapping="Wrap">2. Install the mitmproxy certificate if using HTTPS</TextBlock>
                         <TextBlock TextWrapping="Wrap">3. Add targets in the Targets page</TextBlock>
                         <TextBlock TextWrapping="Wrap">4. Start the proxy in the Settings page</TextBlock>
@@ -156,9 +155,55 @@
                     </StackPanel>
                 </StackPanel>
             </Border>
-            
+
+            <!-- Proxifier Guide Section -->
+            <Border Background="{ThemeResource CardBackgroundFillColorSecondaryBrush}" 
+        CornerRadius="8" Padding="16">
+                <StackPanel Spacing="16">
+                    <TextBlock Text="Proxifier Guide" 
+                   FontSize="20"
+                   FontWeight="SemiBold"
+                   HorizontalAlignment="Left"/>
+
+                    <TextBlock TextWrapping="Wrap" Margin="0,0,0,8">
+                        Proxifier allows you to redirect an application's traffic through Proxxi without changing system-wide settings:
+                    </TextBlock>
+
+                    <StackPanel Spacing="12">
+                        <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" CornerRadius="6" Padding="12">
+                            <StackPanel Spacing="8">
+                                <TextBlock Text="1. Add Proxy Server" FontWeight="SemiBold"/>
+                                <TextBlock TextWrapping="Wrap">• Open Proxifier and go to Profile → Add</TextBlock>
+                                <TextBlock TextWrapping="Wrap">• Enter Address: 127.0.0.1 and Port: 45871</TextBlock>
+                                <TextBlock TextWrapping="Wrap">• Select Protocol: HTTPS</TextBlock>
+                                <TextBlock TextWrapping="Wrap">• Click OK to save</TextBlock>
+                            </StackPanel>
+                        </Border>
+                        
+                        <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" CornerRadius="6" Padding="12">
+                            <StackPanel Spacing="8">
+                                <TextBlock Text="2. Set Proxification Rules" FontWeight="SemiBold"/>
+                                <TextBlock TextWrapping="Wrap">• Go to Proxification Rules → Add</TextBlock>
+                                <TextBlock TextWrapping="Wrap">• Enter a name and select your application</TextBlock>
+                                <TextBlock TextWrapping="Wrap">• Under Action, select your newly created profile</TextBlock>
+                                <TextBlock TextWrapping="Wrap">• Click OK and ensure the rule is enabled</TextBlock>
+                            </StackPanel>
+                        </Border>
+                        
+                        <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" CornerRadius="6" Padding="12">
+                            <StackPanel Spacing="8">
+                                <TextBlock Text="3. Finish Setup" FontWeight="SemiBold"/>
+                                <TextBlock TextWrapping="Wrap">• Start Proxxi proxy in the Settings page</TextBlock>
+                                <TextBlock TextWrapping="Wrap">• Launch your application - traffic will now be redirected through Proxxi</TextBlock>
+                                <TextBlock TextWrapping="Wrap">• Verify in Proxxi's Console that traffic is being intercepted</TextBlock>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
             <!-- GitHub Button -->
-            <HyperlinkButton Content="View on GitHub"
+            <HyperlinkButton Content="View my GitHub"
                              NavigateUri="https://github.com/SalamiSimon"
                              HorizontalAlignment="Center"/>
         </StackPanel>

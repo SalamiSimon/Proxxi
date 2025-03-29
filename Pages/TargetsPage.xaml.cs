@@ -138,12 +138,14 @@ namespace WinUI_V3.Pages
                 if (isRunning)
                 {
                     StatusDot.Fill = new SolidColorBrush(Colors.Green);
-                    ServerStatusText.Text = "Server Running";
+                    ServerStatusText.Text = "Port 45871";
+                    ToolTipService.SetToolTip(ServerStatusIndicator, "Server is running and ready to intercept traffic on 127.0.0.1:45871");
                 }
                 else
                 {
                     StatusDot.Fill = new SolidColorBrush(Colors.Red);
                     ServerStatusText.Text = "Server Not Running";
+                    ToolTipService.SetToolTip(ServerStatusIndicator, "Server is not running. Start the proxy server in the Settings page.");
                 }
             }
             catch (Exception ex)
@@ -151,6 +153,7 @@ namespace WinUI_V3.Pages
                 Debug.WriteLine($"Error updating server status: {ex.Message}");
                 StatusDot.Fill = new SolidColorBrush(Colors.Red);
                 ServerStatusText.Text = "Status Check Error";
+                ToolTipService.SetToolTip(ServerStatusIndicator, "Error checking server status. Please check logs for details.");
             }
         }
         

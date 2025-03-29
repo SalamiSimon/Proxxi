@@ -3,10 +3,7 @@ using Microsoft.UI.Xaml.Controls;
 using System;
 using System.Diagnostics;
 using System.IO;
-using System.Net;
-using System.Net.Http;
 using System.Threading.Tasks;
-using WinUI_V3.Helpers;
 
 namespace WinUI_V3.Pages
 {
@@ -187,7 +184,7 @@ namespace WinUI_V3.Pages
                 var startInfo = new ProcessStartInfo
                 {
                     FileName = "mitmdump",
-                    Arguments = $"-s \"{mitm_core_path}\" --set block_global=false",
+                    Arguments = $"-s \"{mitm_core_path}\" --set block_global=false --listen-port 45871",
                     WorkingDirectory = Path.GetDirectoryName(RootModularPath),
                     UseShellExecute = _showMitmproxyLogs, // Use shell execute when showing logs
                     RedirectStandardOutput = !_showMitmproxyLogs,
@@ -333,7 +330,7 @@ namespace WinUI_V3.Pages
             {
                 // Create a batch file or shortcut in the Windows startup folder
                 string mitm_core_path = Path.Combine(RootModularPath, "run_mitm.py");
-                string startupCommand = $"mitmdump -s \"{mitm_core_path}\" --set block_global=false";
+                string startupCommand = $"mitmdump -s \"{mitm_core_path}\" --set block_global=false --listen-port 45871";
                 string startupPath = Path.Combine(
                     Environment.GetFolderPath(Environment.SpecialFolder.Startup),
                     "MitmModular.bat");
