@@ -12,9 +12,9 @@ namespace WinUI_V3.Pages
 {
     public sealed partial class SettingsPage : Page
     {
-        // HARDCODED PATHS - TEMPORARY
-        private readonly string ModularPath = @"C:\Users\Sten\Desktop\PROXIMITM\mitm_modular";
-        private readonly string RootModularPath = @"C:\Users\Sten\Desktop\PROXIMITM";
+        // Paths relative to the application directory
+        private readonly string ModularPath;
+        private readonly string RootModularPath;
         
         // Process for the proxy server
         private Process? _proxyProcess = null;
@@ -24,8 +24,46 @@ namespace WinUI_V3.Pages
         
         public SettingsPage()
         {
+            // Initialize paths relative to the application directory
+            string appDirectory = GetAppFolder();
+            string toolsPath = Path.Combine(appDirectory, "tools");
+            
+            RootModularPath = toolsPath;
+            ModularPath = Path.Combine(toolsPath, "mitm_modular");
+            
             this.InitializeComponent();
             this.Loaded += SettingsPage_Loaded;
+        }
+        
+        // Get application folder (same as in TargetsPage)
+        private static string GetAppFolder()
+        {
+            try
+            {
+                // Get the application's executable path
+                string? exePath = System.Diagnostics.Process.GetCurrentProcess().MainModule?.FileName;
+                if (exePath == null)
+                {
+                    Debug.WriteLine("Unable to get executable path, falling back to current directory");
+                    return Directory.GetCurrentDirectory();
+                }
+                
+                string? exeDir = Path.GetDirectoryName(exePath);
+                if (exeDir == null)
+                {
+                    Debug.WriteLine("Unable to get directory of executable, falling back to current directory");
+                    return Directory.GetCurrentDirectory();
+                }
+                
+                Debug.WriteLine($"Application path: {exeDir}");
+                return exeDir;
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error getting app folder: {ex.Message}");
+                // Fallback to current directory
+                return Directory.GetCurrentDirectory();
+            }
         }
         
         private async void SettingsPage_Loaded(object sender, RoutedEventArgs e)

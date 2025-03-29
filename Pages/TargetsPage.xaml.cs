@@ -510,8 +510,9 @@ namespace WinUI_V3.Pages
                 string pythonPath = GetPythonExecutablePath();
                 Debug.WriteLine($"Using Python executable: {pythonPath}");
                 
-                // Hardcode the path
-                string basePath = @"C:\Users\Sten\Desktop\PROXIMITM";
+                // Get app directory and use tools subfolder
+                string appDirectory = GetAppFolder();
+                string basePath = Path.Combine(appDirectory, "tools");
                 ModularPath = Path.Combine(basePath, "mitm_modular");
                 
                 // Validate paths
@@ -2091,9 +2092,10 @@ namespace WinUI_V3.Pages
                     return path;
                 }
 
-                // Use ONLY the hardcoded original path as requested
-                string basePath = @"C:\Users\Sten\Desktop\PROXIMITM";
-                string fullPath = Path.Combine(basePath, path);
+                // Get the executable directory and use the tools subfolder
+                string appDirectory = GetAppFolder();
+                string toolsPath = Path.Combine(appDirectory, "tools");
+                string fullPath = Path.Combine(toolsPath, path);
                 Debug.WriteLine($"Resolved path {path} to {fullPath}");
                 return fullPath;
             }
@@ -2111,15 +2113,16 @@ namespace WinUI_V3.Pages
             {
                 // First, check if the embedded Python exists
                 string appDirectory = GetAppFolder();
-                string embeddedPythonPath = Path.Combine(appDirectory, "python", "Scripts", "python.exe");
+                string toolsDirectory = Path.Combine(appDirectory, "tools");
+                string embeddedPythonPath = Path.Combine(toolsDirectory, "python", "Scripts", "python.exe");
                 
                 // Try multiple locations for the embedded Python
                 string[] possiblePaths =
                 [
                     embeddedPythonPath,
-                    Path.Combine(Directory.GetCurrentDirectory(), "python", "Scripts", "python.exe"),
+                    Path.Combine(Directory.GetCurrentDirectory(), "tools", "python", "Scripts", "python.exe"),
                     Path.Combine(Path.GetDirectoryName(ModularPath) ?? string.Empty, "python", "Scripts", "python.exe"),
-                    Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Desktop", "PROXIMITM", "python", "Scripts", "python.exe"),
+                    Path.Combine(toolsDirectory, "python", "Scripts", "python.exe"),
                     "python" // Fallback to system Python
                 ];
                 
@@ -2149,7 +2152,11 @@ namespace WinUI_V3.Pages
         {
             try
             {
-                string wrapperContent = @"
+                // Get the tools directory path
+                string appDirectory = GetAppFolder();
+                string toolsPath = Path.Combine(appDirectory, "tools");
+                
+                string wrapperContent = $@"
 import os
 import sys
 import traceback
@@ -2158,41 +2165,40 @@ print('Python wrapper script starting...')
 
 # Get the directory of this script
 script_dir = os.path.dirname(os.path.abspath(__file__))
-print(f'Script directory: {script_dir}')
+print(f'Script directory: {{script_dir}}')
 
 # Add multiple possible paths to Python's path
 possible_paths = [
     script_dir,
     os.path.dirname(script_dir),
-    os.path.join(os.path.dirname(script_dir), 'PROXIMITM'),
-    r'C:\Users\Sten\Desktop\PROXIMITM'
+    r'{toolsPath}'
 ]
 
 for path in possible_paths:
     if path not in sys.path and os.path.exists(path):
         sys.path.insert(0, path)
-        print(f'Added {path} to Python path')
+        print(f'Added {{path}} to Python path')
 
-print(f'Python path: {sys.path}')
+print(f'Python path: {{sys.path}}')
 
 # Print the arguments we received for debugging
-print(f'Original arguments: {sys.argv}')
+print(f'Original arguments: {{sys.argv}}')
 
 # Use the correct format from the README: python -m mitm_modular.cli [command] [args]
 try:
     # Create a new command that properly calls the module
     module_args = [sys.executable, '-m', 'mitm_modular.cli'] + sys.argv[1:]
-    print(f'Executing module command: {module_args}')
+    print(f'Executing module command: {{module_args}}')
     
     # Run the process and capture the return code
     import subprocess
     result = subprocess.run(module_args, check=True)
     sys.exit(result.returncode)
 except subprocess.CalledProcessError as e:
-    print(f'ERROR: Command failed with return code {e.returncode}')
+    print(f'ERROR: Command failed with return code {{e.returncode}}')
     sys.exit(e.returncode)
 except Exception as e:
-    print(f'ERROR executing CLI: {e}')
+    print(f'ERROR executing CLI: {{e}}')
     traceback.print_exc()
     sys.exit(1)
 ";
