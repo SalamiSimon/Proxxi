@@ -57,6 +57,7 @@ namespace WinUI_V3.Pages
                 if (processes.Length > 0)
                 {
                     // Found mitmdump processes - consider the proxy running
+                    await Task.CompletedTask; // Add an await to avoid CS1998 warning
                     return true;
                 }
                 

@@ -4,7 +4,37 @@ import os
 import sys
 from tabulate import tabulate
 
-from mitm_modular.database import TargetDatabase
+# Fix imports to work whether run directly or as a module
+try:
+    # Try direct import first (when running directly from the module directory)
+    from database import TargetDatabase
+    print("Imported TargetDatabase directly")
+except ImportError:
+    # Try package import (when installed or parent dir is in path)
+    try:
+        from mitm_modular.database import TargetDatabase
+        print("Imported TargetDatabase from package")
+    except ImportError:
+        # Add parent directory to Python path to find module
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        parent_dir = os.path.dirname(current_dir)
+        if parent_dir not in sys.path:
+            sys.path.insert(0, parent_dir)
+            print(f"Added {parent_dir} to Python path")
+        
+        # Try both import styles again
+        try:
+            from database import TargetDatabase
+            print("Imported TargetDatabase directly after path fix")
+        except ImportError:
+            try:
+                from mitm_modular.database import TargetDatabase
+                print("Imported TargetDatabase from package after path fix")
+            except ImportError as e:
+                print(f"ERROR: Failed to import TargetDatabase: {e}")
+                print(f"Python path: {sys.path}")
+                print(f"Current directory: {os.getcwd()}")
+                sys.exit(1)
 
 # Add a new command to cli.py
 def json_list_targets(db):

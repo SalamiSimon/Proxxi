@@ -14,13 +14,14 @@ using WinUI_V3.Helpers;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI;
 using Windows.UI;
+using System.Text.Json.Serialization.Metadata;
 
 namespace WinUI_V3.Pages
 {
     public sealed partial class TargetsPage : Page
     {
         // Observable collection to store and display targets
-        private ObservableCollection<TargetItem> Targets { get; } = new ObservableCollection<TargetItem>();
+        public ObservableCollection<TargetItem> Targets { get; } = new ObservableCollection<TargetItem>();
         
         // Track if we're editing an existing item
         private TargetItem? CurrentEditingItem { get; set; }
@@ -34,33 +35,46 @@ namespace WinUI_V3.Pages
         // Timer for checking server status
         private DispatcherTimer? _statusTimer;
         
-        // HARDCODED PATHS - TEMPORARY
-        private readonly string DbPath = @"C:\Users\Sten\Desktop\PROXIMITM\targets.db";
-        private readonly string ModularPath = @"C:\Users\Sten\Desktop\PROXIMITM\mitm_modular";
-        private readonly string SamplesPath = @"C:\Users\Sten\Desktop\PROXIMITM\mitm_modular\samples";
+        // Update the hardcoded paths to use resolution
+        private readonly string DbPath;
+        private string ModularPath;
+        private readonly string SamplesPath;
 
         public TargetsPage()
         {
             try
             {
+                // Initialize paths first with resolution
+                DbPath = ResolvePath("targets.db");
+                ModularPath = ResolvePath("mitm_modular");
+                SamplesPath = ResolvePath(Path.Combine("mitm_modular", "samples"));
+                
+                Debug.WriteLine($"Resolved paths - DB: {DbPath}, Modular: {ModularPath}, Samples: {SamplesPath}");
+                
+                // Initialize component in its own try-catch to isolate any XAML loading errors
+            try
+            {
                 this.InitializeComponent();
-                
-                // Register for Loaded event to ensure UI elements are fully initialized
-                this.Loaded += TargetsPage_Loaded;
-                
-                // Set the data context for the list view
-                TargetsListView.ItemsSource = Targets;
-                
-                // Initialize the status checking timer
+                    // Don't set DataContext at all - avoid binding completely
+                }
+                catch (Exception initEx)
+                {
+                    Debug.WriteLine($"*** ERROR initializing component: {initEx.Message}");
+                    // We still continue as the page might still be functional
+                }
+
+                // Initialize non-UI objects
                 _statusTimer = new DispatcherTimer();
                 _statusTimer.Interval = TimeSpan.FromSeconds(30);
                 _statusTimer.Tick += StatusTimer_Tick;
+                
+                // Register for Loaded event - defer all UI interaction to this event
+                this.Loaded += TargetsPage_Loaded;
             }
             catch (Exception ex)
             {
                 // Log the exception but don't crash
-                Debug.WriteLine($"Error initializing TargetsPage: {ex.Message}");
-                ShowErrorMessage("Initialization Error", $"Failed to initialize the page: {ex.Message}");
+                Debug.WriteLine($"*** CRITICAL ERROR initializing TargetsPage: {ex.Message}");
             }
         }
 
@@ -68,16 +82,29 @@ namespace WinUI_V3.Pages
         {
             try
             {
-                // Load targets when the page is fully loaded
+                // Load targets data
                 LoadTargets();
+                
+                // Manually update the list view instead of relying on data binding
+                UpdateTargetsList();
                 
                 // Check server status immediately and start the timer
                 UpdateServerStatus();
-                _statusTimer.Start();
+                _statusTimer?.Start();
             }
             catch (Exception ex)
             {
                 Debug.WriteLine($"Error in TargetsPage_Loaded: {ex.Message}");
+                
+                // Now it's safe to show error dialogs
+                try
+                {
+                ShowErrorMessage("Initialization Error", $"Failed to initialize the page: {ex.Message}");
+                }
+                catch (Exception dialogEx)
+                {
+                    Debug.WriteLine($"Failed to show error dialog: {dialogEx.Message}");
+                }
             }
         }
         
@@ -122,6 +149,7 @@ namespace WinUI_V3.Pages
                 if (processes.Length > 0)
                 {
                     // Found mitmdump processes - consider the proxy running
+                    await Task.CompletedTask;
                     return true;
                 }
                 
@@ -134,7 +162,7 @@ namespace WinUI_V3.Pages
             }
         }
 
-        // Load targets from the database
+        // Load targets from the database with improved error handling
         private async void LoadTargets()
         {
             try
@@ -142,25 +170,77 @@ namespace WinUI_V3.Pages
                 // Set the loading flag to prevent toggle events from firing
                 _isLoadingTargets = true;
                 
+                // First, add a placeholder item indicating we're loading
+                Targets.Clear();
+                Targets.Add(new TargetItem
+                {
+                    Id = 0,
+                    TargetUrl = "Loading targets...",
+                    HttpStatus = "Any",
+                    IsStaticResponse = true,
+                    ResponseContent = "{}",
+                    IsEnabled = true
+                });
+                
+                // Update UI immediately to show loading state
+                UpdateTargetsList();
+                
+                Debug.WriteLine($"Starting target loading process");
+                Debug.WriteLine($"Database path: {DbPath}, exists: {File.Exists(DbPath)}");
+                Debug.WriteLine($"Module path: {ModularPath}, exists: {Directory.Exists(ModularPath)}");
+                
                 // Check if Python is available before attempting to use it
-                if (!await IsPythonAvailable())
+                bool pythonAvailable = await IsPythonAvailable();
+                Debug.WriteLine($"Python available: {pythonAvailable}");
+                
+                if (!pythonAvailable)
                 {
                     IsPythonEnvironmentAvailable = false;
+                    Targets.Clear();
+                    Targets.Add(new TargetItem
+                    {
+                        Id = 0,
+                        TargetUrl = "Python not found. Please install Python and ensure it's available in your PATH.",
+                        HttpStatus = "Any",
+                        IsStaticResponse = true,
+                        ResponseContent = "{}",
+                        IsEnabled = true
+                    });
+                    
+                    UpdateTargetsList();
+                    
+                    // Show error dialog
+                    await Task.Delay(100); // Brief delay to ensure UI is updated
                     ShowErrorMessage(
                         "Python Not Found", 
                         "Python is required for the targets functionality. Please ensure Python is installed and available in your PATH."
                     );
+                    
                     _isLoadingTargets = false;
                     return;
                 }
                 
-                // Clear existing items
-                Targets.Clear();
-                
                 // If the database file doesn't exist, create an empty one or show a message
                 if (!File.Exists(DbPath))
                 {
+                    Debug.WriteLine($"Database file not found at: {DbPath}");
+                    // Try to find any db file in the directory
+                    string dbDir = Path.GetDirectoryName(DbPath);
+                    if (Directory.Exists(dbDir))
+                    {
+                        var dbFiles = Directory.GetFiles(dbDir, "*.db");
+                        if (dbFiles.Length > 0)
+                        {
+                            Debug.WriteLine($"Found other DB files: {string.Join(", ", dbFiles)}");
+                        }
+                        else
+                        {
+                            Debug.WriteLine($"No .db files found in {dbDir}");
+                        }
+                    }
+                    
                     // Add a sample item for demonstration
+                    Targets.Clear();
                     Targets.Add(new TargetItem
                     {
                         Id = 0,
@@ -171,12 +251,20 @@ namespace WinUI_V3.Pages
                         IsEnabled = true
                     });
                     
+                    UpdateTargetsList();
                     _isLoadingTargets = false;
                     return;
                 }
                 
-                // Run the CLI command to list targets with JSON output - no db argument needed
+                try
+                {
+                    // Remove the --db parameter since it's causing issues and isn't needed
+                    Debug.WriteLine("Running CLI command to get targets");
                 var results = await RunCliCommandAsync("json-list-all");
+                    Debug.WriteLine($"Got {results.Count} targets from CLI");
+                    
+                    // Clear the loading placeholder
+                    Targets.Clear();
                 
                 // For each target returned by the CLI, add it to our observable collection
                 foreach (var target in results)
@@ -187,6 +275,7 @@ namespace WinUI_V3.Pages
                 // If no targets were found, add a placeholder
                 if (Targets.Count == 0)
                 {
+                        Debug.WriteLine("No targets found, adding placeholder");
                     Targets.Add(new TargetItem
                     {
                         Id = 0,
@@ -197,6 +286,29 @@ namespace WinUI_V3.Pages
                         IsEnabled = true
                     });
                 }
+                }
+                catch (Exception cliEx)
+                {
+                    Debug.WriteLine($"Error running CLI command: {cliEx.Message}");
+                    
+                    // Add a placeholder item indicating the error
+                    Targets.Clear();
+                    Targets.Add(new TargetItem
+                    {
+                        Id = 0,
+                        TargetUrl = $"Error loading targets: {cliEx.Message}",
+                        HttpStatus = "Any",
+                        IsStaticResponse = true,
+                        ResponseContent = "{}",
+                        IsEnabled = true
+                    });
+                    
+                    // Show error dialog
+                    ShowErrorMessage("Error Loading Targets", $"Failed to load targets: {cliEx.Message}");
+                }
+                
+                // Update the ListView with the current items
+                UpdateTargetsList();
                 
                 // Reset the loading flag
                 _isLoadingTargets = false;
@@ -205,7 +317,6 @@ namespace WinUI_V3.Pages
             {
                 // Log the error but don't crash
                 Debug.WriteLine($"Error loading targets: {ex.Message}");
-                ShowErrorMessage("Error Loading Targets", $"Failed to load targets: {ex.Message}");
                 
                 // Add a placeholder item indicating the error
                 Targets.Clear();
@@ -219,19 +330,28 @@ namespace WinUI_V3.Pages
                     IsEnabled = true
                 });
                 
+                // Update the ListView with the error item
+                UpdateTargetsList();
+                
+                // Show error dialog
+                ShowErrorMessage("Error Loading Targets", $"Failed to load targets: {ex.Message}");
+                
                 // Reset the loading flag
                 _isLoadingTargets = false;
             }
         }
         
-        // Check if Python is available
+        // Check if Python is available with better diagnostics
         private async Task<bool> IsPythonAvailable()
         {
             try
             {
+                string pythonPath = GetPythonExecutablePath();
+                Debug.WriteLine($"Checking Python availability using: {pythonPath}");
+                
                 var startInfo = new ProcessStartInfo
                 {
-                    FileName = "python",
+                    FileName = pythonPath,
                     Arguments = "--version",
                     UseShellExecute = false,
                     RedirectStandardOutput = true,
@@ -241,13 +361,101 @@ namespace WinUI_V3.Pages
                 
                 using (var process = new Process { StartInfo = startInfo })
                 {
-                    process.Start();
+                    try
+                    {
+                        Debug.WriteLine("Starting Python process for version check");
+                        bool started = process.Start();
+                        
+                        if (!started)
+                        {
+                            Debug.WriteLine("Failed to start Python process");
+                            return false;
+                        }
+                        
+                        string output = await process.StandardOutput.ReadToEndAsync();
+                        string error = await process.StandardError.ReadToEndAsync();
+                        
                     await process.WaitForExitAsync();
+                        
+                        Debug.WriteLine($"Python version check output: {output}");
+                        if (!string.IsNullOrEmpty(error))
+                        {
+                            Debug.WriteLine($"Python version check error: {error}");
+                        }
+                        
+                        Debug.WriteLine($"Python version check exit code: {process.ExitCode}");
+                        
+                        // Just check if Python exists - don't check for module
                     return process.ExitCode == 0;
                 }
+                    catch (Exception ex)
+                    {
+                        Debug.WriteLine($"Error checking Python version: {ex.Message}");
+                        return false;
+                    }
+                }
             }
-            catch
+            catch (Exception ex)
             {
+                Debug.WriteLine($"Exception in IsPythonAvailable: {ex.Message}");
+                return false;
+            }
+        }
+
+        // Check if a Python module is available
+        private async Task<bool> IsModuleAvailable(string moduleName)
+        {
+            try
+            {
+                Debug.WriteLine($"Checking for Python module availability: {moduleName}");
+                var startInfo = new ProcessStartInfo
+                {
+                    FileName = "python",
+                    Arguments = $"-c \"import {moduleName}; print('Module found')\"",
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    CreateNoWindow = true
+                };
+                
+                using (var process = new Process { StartInfo = startInfo })
+                {
+                    try
+                    {
+                        Debug.WriteLine($"Starting Python process for module check: {moduleName}");
+                        bool started = process.Start();
+                        
+                        if (!started)
+                        {
+                            Debug.WriteLine($"Failed to start Python process for module check: {moduleName}");
+                            return false;
+                        }
+                        
+                        string output = await process.StandardOutput.ReadToEndAsync();
+                        string error = await process.StandardError.ReadToEndAsync();
+                        
+                        await process.WaitForExitAsync();
+                        
+                        Debug.WriteLine($"Python module check output: {output}");
+                        if (!string.IsNullOrEmpty(error))
+                        {
+                            Debug.WriteLine($"Python module check error: {error}");
+                        }
+                        
+                        Debug.WriteLine($"Python module check exit code: {process.ExitCode}");
+                        
+                        return process.ExitCode == 0 && output.Contains("Module found");
+                    }
+                    catch (Exception ex)
+                    {
+                        Debug.WriteLine($"Error checking Python module: {ex.Message}");
+                        return false;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Exception in IsModuleAvailable: {ex.Message}");
                 return false;
             }
         }
@@ -275,7 +483,7 @@ namespace WinUI_V3.Pages
             }
         }
 
-        // Run the mitm_modular CLI command and return the results
+        // Update the RunCliCommandAsync method
         private async Task<ObservableCollection<TargetItem>> RunCliCommandAsync(string command, params string[] args)
         {
             var results = new ObservableCollection<TargetItem>();
@@ -288,12 +496,84 @@ namespace WinUI_V3.Pages
             
             try
             {
-                // Create process start info
-                var startInfo = new ProcessStartInfo
+                string pythonPath = GetPythonExecutablePath();
+                Debug.WriteLine($"Using Python executable: {pythonPath}");
+                
+                // Hardcode the path
+                string basePath = @"C:\Users\Sten\Desktop\PROXIMITM";
+                ModularPath = Path.Combine(basePath, "mitm_modular");
+                
+                // Validate paths
+                if (!Directory.Exists(Path.GetDirectoryName(ModularPath)))
                 {
-                    FileName = "python",
-                    WorkingDirectory = Path.GetDirectoryName(ModularPath), // Set working directory to parent of the mitm_modular directory
-                    Arguments = $"-m mitm_modular.cli {command} {string.Join(" ", args)}",
+                    Debug.WriteLine($"Modular directory not found: {Path.GetDirectoryName(ModularPath)}");
+                    throw new DirectoryNotFoundException($"Directory not found: {Path.GetDirectoryName(ModularPath)}");
+                }
+                
+                // Check if cli.py exists in the expected location
+                string cliPath = Path.Combine(ModularPath, "cli.py");
+                Debug.WriteLine($"Checking if CLI file exists at: {cliPath}, exists: {File.Exists(cliPath)}");
+                
+                // Create a wrapper script to handle the import issue
+                string wrapperScript = CreatePythonWrapper();
+                Debug.WriteLine($"Created wrapper script at: {wrapperScript}");
+                
+                // Display wrapper script content for debugging
+                try
+                {
+                    string wrapperContent = File.ReadAllText(wrapperScript);
+                    Debug.WriteLine("Wrapper script content:");
+                    Debug.WriteLine(wrapperContent);
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"Error reading wrapper script: {ex.Message}");
+                }
+                
+                // Build the command line arguments differently
+                // Format the arguments as an array first, then join them
+                var argsList = new List<string>();
+                
+                // Add command as first argument (list, add, delete, etc.)
+                argsList.Add(command);
+                
+                // For add command, ensure URL is properly handled
+                if (command == "add" && args.Length > 0)
+                {
+                    // Handle URL - removing existing quotes if present
+                    string targetUrl = args[0].Trim('"', '\'');
+                    
+                    // For URLs with spaces, quote them
+                    if (targetUrl.Contains(" "))
+                    {
+                        argsList.Add($"\"{targetUrl}\"");
+                    }
+                    else
+                    {
+                        argsList.Add(targetUrl);
+                    }
+                    
+                    // Add remaining args (skip url)
+                    for (int i = 1; i < args.Length; i++)
+                    {
+                        argsList.Add(args[i]);
+                    }
+                }
+                else
+                {
+                    // For all other commands just add all args
+                    argsList.AddRange(args);
+                }
+                
+                // Join all arguments with spaces
+                string cliArguments = string.Join(" ", argsList);
+                Debug.WriteLine($"CLI arguments: {cliArguments}");
+                
+                ProcessStartInfo startInfo = new ProcessStartInfo
+                {
+                    FileName = pythonPath,
+                    WorkingDirectory = basePath, // Set working directory to the hardcoded path
+                    Arguments = $"{wrapperScript} {cliArguments}",
                     UseShellExecute = false,
                     RedirectStandardOutput = true,
                     RedirectStandardError = true,
@@ -303,22 +583,56 @@ namespace WinUI_V3.Pages
                 Debug.WriteLine($"Running command: {startInfo.FileName} {startInfo.Arguments}");
                 Debug.WriteLine($"Working directory: {startInfo.WorkingDirectory}");
                 
-                // Start the process
+                // Start the process with extensive error logging
                 using (var process = new Process { StartInfo = startInfo })
                 {
+                    try
+                    {
+                        Debug.WriteLine("Starting Python process");
                     process.Start();
-                    string output = await process.StandardOutput.ReadToEndAsync();
-                    string errors = await process.StandardError.ReadToEndAsync();
+                        Debug.WriteLine("Python process started");
+                    }
+                    catch (Exception ex)
+                    {
+                        Debug.WriteLine($"Error starting Python process: {ex.Message}");
+                        throw new Exception($"Error starting Python process: {ex.Message}", ex);
+                    }
+                    
+                    // Read output in real time for better diagnostics
+                    var outputBuilder = new System.Text.StringBuilder();
+                    var errorBuilder = new System.Text.StringBuilder();
+                    
+                    process.OutputDataReceived += (sender, e) => {
+                        if (e.Data != null)
+                        {
+                            Debug.WriteLine($"Python output: {e.Data}");
+                            outputBuilder.AppendLine(e.Data);
+                        }
+                    };
+                    
+                    process.ErrorDataReceived += (sender, e) => {
+                        if (e.Data != null)
+                        {
+                            Debug.WriteLine($"Python error: {e.Data}");
+                            errorBuilder.AppendLine(e.Data);
+                        }
+                    };
+                    
+                    process.BeginOutputReadLine();
+                    process.BeginErrorReadLine();
+                    
                     await process.WaitForExitAsync();
                     
-                    Debug.WriteLine($"Command output: {output}");
-                    if (!string.IsNullOrEmpty(errors)) {
-                        Debug.WriteLine($"Command errors: {errors}");
-                    }
+                    string output = outputBuilder.ToString();
+                    string errors = errorBuilder.ToString();
+                    
+                    Debug.WriteLine($"Python process exit code: {process.ExitCode}");
                     
                     if (process.ExitCode != 0)
                     {
-                        throw new Exception($"Error executing CLI command: {errors}");
+                        Debug.WriteLine("Command failed with error output:");
+                        Debug.WriteLine(errors);
+                        throw new Exception($"Error executing CLI command ({process.ExitCode}): {errors}");
                     }
                     
                     // Add this right after reading the CLI output
@@ -327,41 +641,60 @@ namespace WinUI_V3.Pages
                     Debug.WriteLine("------ End of CLI output ------");
                     
                     // Handle json-list and json-list-all commands
-                    if ((command == "json-list" || command == "json-list-all") && output.Trim().StartsWith("[") && output.Trim().EndsWith("]"))
+                    if ((command == "json-list" || command == "json-list-all"))
                     {
-                        try 
+                        Debug.WriteLine($"Processing {command} output");
+                        
+                        // Clean up the output - remove any non-JSON content like Python debug messages
+                        string jsonOutput = output;
+                        int jsonStart = jsonOutput.IndexOf('[');
+                        int jsonEnd = jsonOutput.LastIndexOf(']');
+                        
+                        if (jsonStart >= 0 && jsonEnd > jsonStart)
                         {
-                            // Deserialize JSON directly
-                            var jsonTargets = JsonSerializer.Deserialize<List<Dictionary<string, JsonElement>>>(output);
-
-                            foreach (var target in jsonTargets)
+                            jsonOutput = jsonOutput.Substring(jsonStart, jsonEnd - jsonStart + 1);
+                            Debug.WriteLine($"Extracted JSON: {jsonOutput}");
+                            
+                            try 
                             {
-                                // Get the modification type directly from the JSON
-                                string? modType = target["modification_type"].GetString();
-                                
-                                // Create the target item with appropriate flags based on modification type
+                                // Use our manual parsing approach which is more reliable in Release mode
+                                Debug.WriteLine("Using manual JSON parsing approach");
+                                var manualTargets = ParseJsonManually(jsonOutput);
+                                Debug.WriteLine($"Manual parsing returned {manualTargets.Count} targets");
+
+                                foreach (var target in manualTargets)
+                                {
+                                    // Create target item from manually parsed data
                                 var targetItem = new TargetItem
                                 {
-                                    Id = target["id"].GetInt32(),
-                                    TargetUrl = target["url"].GetString() ?? string.Empty,
-                                    HttpStatus = target["status_code"].ValueKind == JsonValueKind.Null ? null : target["status_code"].GetInt32().ToString(),
-                                    TargetHttpStatus = target["target_status_code"].ValueKind == JsonValueKind.Null ? null : target["target_status_code"].GetInt32().ToString(),
-                                    ModificationType = modType ?? "static",
-                                    IsStaticResponse = modType == "static",
-                                    IsNoModification = modType == "none",
-                                    ResponseContent = modType == "dynamic" 
-                                        ? target["dynamic_code"].GetString() ?? string.Empty 
-                                        : (modType == "static" ? target["static_response"].GetString() ?? string.Empty : string.Empty),
-                                    IsEnabled = target["is_enabled"].GetInt32() == 1
+                                        Id = target.ContainsKey("id") ? Convert.ToInt32(target["id"]) : 0,
+                                        TargetUrl = target.ContainsKey("url") ? target["url"].ToString() : string.Empty,
+                                        HttpStatus = target.ContainsKey("status_code") ? (target["status_code"] != null ? target["status_code"].ToString() : null) : null,
+                                        TargetHttpStatus = target.ContainsKey("target_status_code") ? (target["target_status_code"] != null ? target["target_status_code"].ToString() : null) : null,
+                                        ModificationType = target.ContainsKey("modification_type") ? target["modification_type"].ToString() : "static",
+                                        IsStaticResponse = target.ContainsKey("modification_type") && target["modification_type"].ToString() == "static",
+                                        IsNoModification = target.ContainsKey("modification_type") && target["modification_type"].ToString() == "none",
+                                        ResponseContent = target.ContainsKey("modification_type") ? 
+                                            (target["modification_type"].ToString() == "dynamic" && target.ContainsKey("dynamic_code") ? "Dynamic code" : 
+                                             target["modification_type"].ToString() == "static" && target.ContainsKey("static_response") ? "Static response" : string.Empty) 
+                                            : string.Empty,
+                                        IsEnabled = target.ContainsKey("is_enabled") && Convert.ToInt32(target["is_enabled"]) == 1
                                 };
 
                                 results.Add(targetItem);
+                                    Debug.WriteLine($"Added targetItem to results: {targetItem.Id}, {targetItem.TargetUrl}");
                             }
                         }
                         catch (Exception ex) 
                         {
                             Debug.WriteLine($"Error parsing JSON: {ex.Message}");
+                                Debug.WriteLine($"Exception details: {ex}");
                             throw new Exception($"Error parsing JSON: {ex.Message}", ex);
+                            }
+                        }
+                        else
+                        {
+                            Debug.WriteLine("Could not find valid JSON array in output");
                         }
                     }
                     // Handle view command
@@ -461,16 +794,16 @@ namespace WinUI_V3.Pages
                 
                 // Reset dialog fields
                 if (TargetUrlTextBox != null)
-                    TargetUrlTextBox.Text = string.Empty;
+                TargetUrlTextBox.Text = string.Empty;
                 
                 if (HttpStatusComboBox != null)
-                    HttpStatusComboBox.SelectedIndex = 0; // Default to "Any Status"
+                HttpStatusComboBox.SelectedIndex = 0; // Default to "Any Status"
                 
                 if (TargetHttpStatusComboBox != null)
-                    TargetHttpStatusComboBox.SelectedIndex = 0; // Default to "No Change"
+                TargetHttpStatusComboBox.SelectedIndex = 0; // Default to "No Change"
                 
                 if (StaticResponseRadioButton != null)
-                    StaticResponseRadioButton.IsChecked = true;
+                StaticResponseRadioButton.IsChecked = true;
                 
                 if (NoModificationRadioButton != null)
                     NoModificationRadioButton.IsChecked = false;
@@ -479,7 +812,7 @@ namespace WinUI_V3.Pages
                     DynamicResponseRadioButton.IsChecked = false;
                 
                 if (StaticResponseTextBox != null)
-                    StaticResponseTextBox.Text = string.Empty;
+                StaticResponseTextBox.Text = string.Empty;
                 
                 if (DynamicResponseTextBox != null)
                     DynamicResponseTextBox.Text = string.Empty;
@@ -495,7 +828,7 @@ namespace WinUI_V3.Pages
                 
                 // Show the dialog
                 if (AddTargetDialog != null)
-                    await AddTargetDialog.ShowAsync();
+                await AddTargetDialog.ShowAsync();
             }
             catch (Exception ex)
             {
@@ -528,47 +861,47 @@ namespace WinUI_V3.Pages
                     
                     // Populate dialog with existing values
                     if (TargetUrlTextBox != null)
-                        TargetUrlTextBox.Text = targetItem.TargetUrl;
+                    TargetUrlTextBox.Text = targetItem.TargetUrl;
                     
                     // Find and select the matching HTTP status
                     if (HttpStatusComboBox != null)
                     {
-                        if (!string.IsNullOrEmpty(targetItem.HttpStatus))
+                    if (!string.IsNullOrEmpty(targetItem.HttpStatus))
+                    {
+                        foreach (ComboBoxItem item in HttpStatusComboBox.Items)
                         {
-                            foreach (ComboBoxItem item in HttpStatusComboBox.Items)
+                                if (item.Tag != null && item.Tag.ToString() == targetItem.HttpStatus)
                             {
-                                if (item.Tag.ToString() == targetItem.HttpStatus)
-                                {
-                                    HttpStatusComboBox.SelectedItem = item;
-                                    break;
-                                }
+                                HttpStatusComboBox.SelectedItem = item;
+                                break;
                             }
                         }
-                        else
-                        {
-                            // Set to "Any Status"
-                            HttpStatusComboBox.SelectedIndex = 0;
+                    }
+                    else
+                    {
+                        // Set to "Any Status"
+                        HttpStatusComboBox.SelectedIndex = 0;
                         }
                     }
                     
                     // Find and select the matching target HTTP status
                     if (TargetHttpStatusComboBox != null)
                     {
-                        if (!string.IsNullOrEmpty(targetItem.TargetHttpStatus))
+                    if (!string.IsNullOrEmpty(targetItem.TargetHttpStatus))
+                    {
+                        foreach (ComboBoxItem item in TargetHttpStatusComboBox.Items)
                         {
-                            foreach (ComboBoxItem item in TargetHttpStatusComboBox.Items)
+                                if (item.Tag != null && item.Tag.ToString() == targetItem.TargetHttpStatus)
                             {
-                                if (item.Tag.ToString() == targetItem.TargetHttpStatus)
-                                {
-                                    TargetHttpStatusComboBox.SelectedItem = item;
-                                    break;
-                                }
+                                TargetHttpStatusComboBox.SelectedItem = item;
+                                break;
                             }
                         }
-                        else
-                        {
-                            // Set to "No Change"
-                            TargetHttpStatusComboBox.SelectedIndex = 0;
+                    }
+                    else
+                    {
+                        // Set to "No Change"
+                        TargetHttpStatusComboBox.SelectedIndex = 0;
                         }
                     }
                     
@@ -587,7 +920,7 @@ namespace WinUI_V3.Pages
                     else if (targetItem.IsStaticResponse)
                     {
                         if (StaticResponseRadioButton != null)
-                            StaticResponseRadioButton.IsChecked = true;
+                        StaticResponseRadioButton.IsChecked = true;
                         
                         if (StaticResponsePanel != null)
                             StaticResponsePanel.Visibility = Visibility.Visible;
@@ -596,12 +929,12 @@ namespace WinUI_V3.Pages
                             DynamicResponsePanel.Visibility = Visibility.Collapsed;
                         
                         if (StaticResponseTextBox != null)
-                            StaticResponseTextBox.Text = targetItem.ResponseContent;
+                        StaticResponseTextBox.Text = targetItem.ResponseContent;
                     }
                     else
                     {
                         if (DynamicResponseRadioButton != null)
-                            DynamicResponseRadioButton.IsChecked = true;
+                        DynamicResponseRadioButton.IsChecked = true;
                         
                         if (StaticResponsePanel != null)
                             StaticResponsePanel.Visibility = Visibility.Collapsed;
@@ -610,14 +943,14 @@ namespace WinUI_V3.Pages
                             DynamicResponsePanel.Visibility = Visibility.Visible;
                         
                         if (DynamicResponseTextBox != null)
-                            DynamicResponseTextBox.Text = targetItem.ResponseContent;
+                        DynamicResponseTextBox.Text = targetItem.ResponseContent;
                     }
                     
                     CurrentEditingItem = targetItem;
                     
                     // Show the dialog
                     if (AddTargetDialog != null)
-                        await AddTargetDialog.ShowAsync();
+                    await AddTargetDialog.ShowAsync();
                 }
             }
             catch (Exception ex)
@@ -666,7 +999,7 @@ namespace WinUI_V3.Pages
                         return;
                     }
                     
-                    // Run the CLI command to delete the target
+                    // Run the CLI command to delete the target without the --db parameter
                     await RunCliCommandAsync("delete", targetItem.Id.ToString());
                     
                     // Remove from our collection
@@ -732,7 +1065,7 @@ namespace WinUI_V3.Pages
                     // Get the toggle state from the switch
                     bool isEnabled = toggleSwitch.IsOn;
                     
-                    // Run the CLI command to enable/disable the target
+                    // Run the CLI command to enable/disable the target without the --db parameter
                     string command = isEnabled ? "enable" : "disable";
                     await RunCliCommandAsync(command, targetItem.Id.ToString());
                     
@@ -1027,9 +1360,9 @@ namespace WinUI_V3.Pages
                 if (CurrentEditingItem != null && CurrentEditingItem.Id != 0)
                 {
                     try
-                    {
-                        // Delete the existing target and add a new one (since there's no direct edit function in CLI)
-                        await RunCliCommandAsync("delete", CurrentEditingItem.Id.ToString());
+                {
+                    // Delete the existing target and add a new one (since there's no direct edit function in CLI)
+                    await RunCliCommandAsync("delete", CurrentEditingItem.Id.ToString());
                     }
                     catch (Exception ex)
                     {
@@ -1054,8 +1387,7 @@ namespace WinUI_V3.Pages
                     {
                         // Use the new 'none' modification type for status-only changes
                         var args_list = new List<string> {
-                            "add",
-                            $"\"{targetUrl}\"",
+                            targetUrl,
                             "--type", "none",
                             "--target-status", targetHttpStatus
                         };
@@ -1068,7 +1400,7 @@ namespace WinUI_V3.Pages
                         }
                         
                         // Run the CLI command
-                        await RunCliCommandAsync(args_list[0], args_list.Skip(1).ToArray());
+                        await RunCliCommandAsync("add", args_list.ToArray());
                     }
                     catch (Exception ex)
                     {
@@ -1082,47 +1414,46 @@ namespace WinUI_V3.Pages
                 {
                     try
                     {
-                        // Prepare the arguments for the add command
-                        var args_list = new List<string> {
-                            "add",
-                            $"\"{targetUrl}\"",
-                            "--type", isStaticResponse ? "static" : "dynamic"
-                        };
-                        
-                        // Add the status code if not "Any"
-                        if (httpStatus != "Any")
-                        {
-                            args_list.Add("--status");
+                // Prepare the arguments for the add command
+                var args_list = new List<string> {
+                            targetUrl,
+                    "--type", isStaticResponse ? "static" : "dynamic"
+                };
+                
+                // Add the status code if not "Any"
+                if (httpStatus != "Any")
+                {
+                    args_list.Add("--status");
                             args_list.Add(httpStatus ?? "Any");
-                        }
-                        
-                        // Add the target status code if not "NoChange"
-                        if (targetHttpStatus != "NoChange")
-                        {
-                            args_list.Add("--target-status");
+                }
+                
+                // Add the target status code if not "NoChange"
+                if (targetHttpStatus != "NoChange")
+                {
+                    args_list.Add("--target-status");
                             args_list.Add(targetHttpStatus ?? "NoChange");
-                        }
-                        
-                        // Add content based on the type
-                        if (isStaticResponse)
-                        {
-                            // Create a temporary file for the JSON response
-                            string tempFile = Path.GetTempFileName();
-                            await File.WriteAllTextAsync(tempFile, responseContent ?? "{}");
-                            args_list.Add("--response-file");
-                            args_list.Add(tempFile);
-                        }
-                        else
-                        {
-                            // Create a temporary file for the Python code
-                            string tempFile = Path.GetTempFileName();
-                            await File.WriteAllTextAsync(tempFile, responseContent ?? string.Empty);
-                            args_list.Add("--code-file");
-                            args_list.Add(tempFile);
-                        }
-                        
-                        // Run the CLI command
-                        await RunCliCommandAsync(args_list[0], args_list.Skip(1).ToArray());
+                }
+                
+                // Add content based on the type
+                if (isStaticResponse)
+                {
+                    // Create a temporary file for the JSON response
+                    string tempFile = Path.GetTempFileName();
+                    await File.WriteAllTextAsync(tempFile, responseContent ?? "{}");
+                    args_list.Add("--response-file");
+                    args_list.Add(tempFile);
+                }
+                else
+                {
+                    // Create a temporary file for the Python code
+                    string tempFile = Path.GetTempFileName();
+                    await File.WriteAllTextAsync(tempFile, responseContent ?? string.Empty);
+                    args_list.Add("--code-file");
+                    args_list.Add(tempFile);
+                }
+                
+                // Run the CLI command
+                        await RunCliCommandAsync("add", args_list.ToArray());
                     }
                     catch (Exception ex)
                     {
@@ -1286,6 +1617,514 @@ namespace WinUI_V3.Pages
                 Debug.WriteLine($"Error applying fullscreen dynamic content: {ex.Message}");
                 args.Cancel = true;
                 ShowErrorMessage("Error", $"Failed to apply changes: {ex.Message}");
+            }
+        }
+
+        private void UpdateTargetsList()
+        {
+            try
+            {
+                // Clear existing items in the ListView if it exists
+                if (TargetsListView != null)
+                {
+                    TargetsListView.Items.Clear();
+                    
+                    // Manually create UI elements for each target
+                    foreach (var target in Targets)
+                    {
+                        // Create container grid
+                        var grid = new Grid { Margin = new Thickness(0, 4, 0, 4) };
+                        
+                        // Define columns
+                        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+                        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+                        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+                        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+                        
+                        // Target URL section
+                        var border = new Border
+                        {
+                            CornerRadius = new CornerRadius(4),
+                            Padding = new Thickness(12, 8, 12, 8),
+                            Background = (SolidColorBrush)Application.Current.Resources["CardBackgroundFillColorSecondaryBrush"],
+                            Opacity = target.IsEnabled ? 1.0 : 0.6
+                        };
+                        Grid.SetColumn(border, 0);
+                        
+                        // Create content for border
+                        var stackPanel = new StackPanel();
+                        
+                        // Target URL
+                        var urlText = new TextBlock
+                        {
+                            Text = target.TargetUrl ?? "No URL",
+                            TextWrapping = TextWrapping.Wrap
+                        };
+                        stackPanel.Children.Add(urlText);
+                        
+                        // Details line (only if not a placeholder)
+                        if (target.Id != 0)
+                        {
+                            var detailsPanel = new StackPanel
+                            {
+                                Orientation = Orientation.Horizontal,
+                                Margin = new Thickness(0, 4, 0, 0)
+                            };
+                            
+                            // Type
+                            var typeLabel = new TextBlock
+                            {
+                                Text = "Type: ",
+                                FontSize = 12,
+                                Opacity = 0.7
+                            };
+                            detailsPanel.Children.Add(typeLabel);
+                            
+                            var typeValue = new TextBlock
+                            {
+                                Text = target.ModificationType,
+                                FontSize = 12,
+                                Opacity = 0.7,
+                                Margin = new Thickness(4, 0, 0, 0)
+                            };
+                            detailsPanel.Children.Add(typeValue);
+                            
+                            // Match Status
+                            var statusLabel = new TextBlock
+                            {
+                                Text = " | Match Status: ",
+                                FontSize = 12,
+                                Opacity = 0.7,
+                                Margin = new Thickness(8, 0, 0, 0)
+                            };
+                            detailsPanel.Children.Add(statusLabel);
+                            
+                            var statusValue = new TextBlock
+                            {
+                                Text = target.HttpStatus ?? "Any",
+                                FontSize = 12,
+                                Opacity = 0.7,
+                                Margin = new Thickness(4, 0, 0, 0)
+                            };
+                            detailsPanel.Children.Add(statusValue);
+                            
+                            // Response Status
+                            var targetStatusLabel = new TextBlock
+                            {
+                                Text = " | Response Status: ",
+                                FontSize = 12,
+                                Opacity = 0.7,
+                                Margin = new Thickness(8, 0, 0, 0)
+                            };
+                            detailsPanel.Children.Add(targetStatusLabel);
+                            
+                            var targetStatusValue = new TextBlock
+                            {
+                                Text = target.TargetHttpStatus ?? "No Change",
+                                FontSize = 12,
+                                Opacity = 0.7,
+                                Margin = new Thickness(4, 0, 0, 0)
+                            };
+                            detailsPanel.Children.Add(targetStatusValue);
+                            
+                            stackPanel.Children.Add(detailsPanel);
+                        }
+                        
+                        border.Child = stackPanel;
+                        grid.Children.Add(border);
+                        
+                        // Only add controls if this is not a placeholder item
+                        if (target.Id != 0)
+                        {
+                            // Toggle switch
+                            var toggleSwitch = new ToggleSwitch
+                            {
+                                MinWidth = 0,
+                                Width = 60,
+                                Margin = new Thickness(8, 0, 0, 0),
+                                IsOn = target.IsEnabled,
+                                OffContent = "",
+                                OnContent = "",
+                                Tag = target
+                            };
+                            toggleSwitch.Toggled += EnableSwitch_Toggled;
+                            ToolTipService.SetToolTip(toggleSwitch, "Enable/Disable Target");
+                            Grid.SetColumn(toggleSwitch, 1);
+                            grid.Children.Add(toggleSwitch);
+                            
+                            // Edit button
+                            var editButton = new Button
+                            {
+                                Margin = new Thickness(-8, 0, 0, 0),
+                                Tag = target,
+                            };
+                            editButton.Click += EditTargetButton_Click;
+                            ToolTipService.SetToolTip(editButton, "Edit");
+                            
+                            var editIcon = new FontIcon
+                            {
+                                Glyph = "\uE70F",
+                                FontSize = 16
+                            };
+                            editButton.Content = editIcon;
+                            
+                            Grid.SetColumn(editButton, 2);
+                            grid.Children.Add(editButton);
+                            
+                            // Delete button
+                            var deleteButton = new Button
+                            {
+                                Margin = new Thickness(8, 0, 0, 0),
+                                Tag = target,
+                            };
+                            deleteButton.Click += DeleteTargetButton_Click;
+                            ToolTipService.SetToolTip(deleteButton, "Delete");
+                            
+                            var deleteIcon = new FontIcon
+                            {
+                                Glyph = "\uE74D",
+                                FontSize = 16
+                            };
+                            deleteButton.Content = deleteIcon;
+                            
+                            Grid.SetColumn(deleteButton, 3);
+                            grid.Children.Add(deleteButton);
+                        }
+                        
+                        // Add the whole row to the ListView
+                        TargetsListView.Items.Add(grid);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error updating targets list: {ex.Message}");
+            }
+        }
+
+        // Add a fallback method for parsing JSON manually if needed
+        private List<Dictionary<string, object>> ParseJsonManually(string json)
+        {
+            Debug.WriteLine("Starting manual JSON parsing");
+            Debug.WriteLine($"JSON input: {json}");
+            
+            try
+            {
+                var result = new List<Dictionary<string, object>>();
+                
+                // Simple manual parsing - this is a fallback only
+                if (string.IsNullOrWhiteSpace(json) || !json.Trim().StartsWith("["))
+                {
+                    Debug.WriteLine("JSON is empty or not an array");
+                    return result;
+                }
+                
+                // For our specific JSON structure, we need to properly split the JSON array
+                string content = json.Trim();
+                
+                // Remove the outer brackets
+                content = content.TrimStart('[').TrimEnd(']').Trim();
+                
+                if (string.IsNullOrWhiteSpace(content))
+                {
+                    Debug.WriteLine("JSON array is empty");
+                    return result;
+                }
+                
+                // Split the JSON array items (properly handling nested objects/arrays)
+                List<string> items = new List<string>();
+                int startIndex = 0;
+                int braceCount = 0;
+                
+                for (int i = 0; i < content.Length; i++)
+                {
+                    char c = content[i];
+                    
+                    if (c == '{') braceCount++;
+                    else if (c == '}') braceCount--;
+                    
+                    // Check if we've reached the end of an item
+                    if (braceCount == 0 && c == '}')
+                    {
+                        // Add the item to our list
+                        string item = content.Substring(startIndex, i - startIndex + 1);
+                        items.Add(item);
+                        
+                        // Skip the comma and any whitespace
+                        i++;
+                        while (i < content.Length && (content[i] == ',' || char.IsWhiteSpace(content[i])))
+                        {
+                            i++;
+                        }
+                        
+                        // Set the start index for the next item
+                        startIndex = i;
+                        i--; // Counteract the for loop increment
+                    }
+                }
+                
+                Debug.WriteLine($"Found {items.Count} items in JSON array");
+                
+                // Process each item
+                foreach (var itemJson in items)
+                {
+                    if (string.IsNullOrWhiteSpace(itemJson)) continue;
+                    
+                    Debug.WriteLine($"Processing item: {itemJson}");
+                    
+                    var target = new Dictionary<string, object>();
+                    
+                    // Try to extract ID
+                    var idMatch = System.Text.RegularExpressions.Regex.Match(itemJson, "\"id\"\\s*:\\s*(\\d+)");
+                    if (idMatch.Success)
+                    {
+                        target["id"] = int.Parse(idMatch.Groups[1].Value);
+                        Debug.WriteLine($"Found ID: {target["id"]}");
+                    }
+                    
+                    // Try to extract URL
+                    var urlMatch = System.Text.RegularExpressions.Regex.Match(itemJson, "\"url\"\\s*:\\s*\"([^\"]*)\"");
+                    if (urlMatch.Success)
+                    {
+                        target["url"] = urlMatch.Groups[1].Value;
+                        Debug.WriteLine($"Found URL: {target["url"]}");
+                    }
+                    
+                    // Try to extract modification_type
+                    var modTypeMatch = System.Text.RegularExpressions.Regex.Match(itemJson, "\"modification_type\"\\s*:\\s*\"([^\"]*)\"");
+                    if (modTypeMatch.Success)
+                    {
+                        target["modification_type"] = modTypeMatch.Groups[1].Value;
+                        Debug.WriteLine($"Found modification_type: {target["modification_type"]}");
+                    }
+                    else
+                    {
+                        target["modification_type"] = "static"; // Default
+                        Debug.WriteLine("Using default modification_type: static");
+                    }
+                    
+                    // Try to extract status_code
+                    var statusMatch = System.Text.RegularExpressions.Regex.Match(itemJson, "\"status_code\"\\s*:\\s*(\\d+)");
+                    if (statusMatch.Success)
+                    {
+                        target["status_code"] = int.Parse(statusMatch.Groups[1].Value);
+                        Debug.WriteLine($"Found status_code: {target["status_code"]}");
+                    }
+                    
+                    // Check for null status code (appears as "status_code":null)
+                    var nullStatusMatch = System.Text.RegularExpressions.Regex.Match(itemJson, "\"status_code\"\\s*:\\s*null");
+                    if (nullStatusMatch.Success)
+                    {
+                        target["status_code"] = null;
+                        Debug.WriteLine("Found null status_code");
+                    }
+                    
+                    // Try to extract target_status_code
+                    var targetStatusMatch = System.Text.RegularExpressions.Regex.Match(itemJson, "\"target_status_code\"\\s*:\\s*(\\d+)");
+                    if (targetStatusMatch.Success)
+                    {
+                        target["target_status_code"] = int.Parse(targetStatusMatch.Groups[1].Value);
+                        Debug.WriteLine($"Found target_status_code: {target["target_status_code"]}");
+                    }
+                    
+                    // Check for null target status code
+                    var nullTargetStatusMatch = System.Text.RegularExpressions.Regex.Match(itemJson, "\"target_status_code\"\\s*:\\s*null");
+                    if (nullTargetStatusMatch.Success)
+                    {
+                        target["target_status_code"] = null;
+                        Debug.WriteLine("Found null target_status_code");
+                    }
+                    
+                    // Try to extract dynamic_code (just check if it exists, we don't need the content for the list view)
+                    var dynamicCodeMatch = System.Text.RegularExpressions.Regex.Match(itemJson, "\"dynamic_code\"\\s*:");
+                    if (dynamicCodeMatch.Success && target["modification_type"].ToString() == "dynamic")
+                    {
+                        target["dynamic_code"] = "Dynamic code exists";
+                        Debug.WriteLine("Found dynamic_code");
+                    }
+                    
+                    // Try to extract static_response (just check if it exists, we don't need the content for the list view)
+                    var staticResponseMatch = System.Text.RegularExpressions.Regex.Match(itemJson, "\"static_response\"\\s*:");
+                    if (staticResponseMatch.Success && target["modification_type"].ToString() == "static")
+                    {
+                        target["static_response"] = "Static response exists";
+                        Debug.WriteLine("Found static_response");
+                    }
+                    
+                    // Try to extract is_enabled
+                    var enabledMatch = System.Text.RegularExpressions.Regex.Match(itemJson, "\"is_enabled\"\\s*:\\s*(\\d+)");
+                    if (enabledMatch.Success)
+                    {
+                        target["is_enabled"] = int.Parse(enabledMatch.Groups[1].Value);
+                        Debug.WriteLine($"Found is_enabled: {target["is_enabled"]}");
+                    }
+                    else
+                    {
+                        target["is_enabled"] = 1; // Default to enabled
+                        Debug.WriteLine("Using default is_enabled: 1");
+                    }
+                    
+                    // Add the target to our result
+                    result.Add(target);
+                    Debug.WriteLine($"Added target to results. Total: {result.Count}");
+                }
+                
+                return result;
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error in manual JSON parsing: {ex.Message}");
+                Debug.WriteLine($"Exception details: {ex}");
+                return new List<Dictionary<string, object>>();
+            }
+        }
+
+        // Update the hardcoded paths to be more flexible and include validation
+        private string GetAppFolder()
+        {
+            try
+            {
+                // Get the application's executable path
+                string exePath = System.Diagnostics.Process.GetCurrentProcess().MainModule.FileName;
+                string exeDir = Path.GetDirectoryName(exePath);
+                Debug.WriteLine($"Application path: {exeDir}");
+                return exeDir;
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error getting app folder: {ex.Message}");
+                // Fallback to current directory
+                return Directory.GetCurrentDirectory();
+            }
+        }
+
+        private string ResolvePath(string path)
+        {
+            try
+            {
+                // If the path is absolute, use it
+                if (Path.IsPathRooted(path))
+                {
+                    return path;
+                }
+
+                // Use ONLY the hardcoded original path as requested
+                string basePath = @"C:\Users\Sten\Desktop\PROXIMITM";
+                string fullPath = Path.Combine(basePath, path);
+                Debug.WriteLine($"Resolved path {path} to {fullPath}");
+                return fullPath;
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error resolving path: {ex.Message}");
+                return path;
+            }
+        }
+
+        // Update the python executable path to use the embedded version
+        private string GetPythonExecutablePath()
+        {
+            try
+            {
+                // First, check if the embedded Python exists
+                string appDirectory = GetAppFolder();
+                string embeddedPythonPath = Path.Combine(appDirectory, "python", "Scripts", "python.exe");
+                
+                // Try multiple locations for the embedded Python
+                string[] possiblePaths = new[]
+                {
+                    embeddedPythonPath,
+                    Path.Combine(Directory.GetCurrentDirectory(), "python", "Scripts", "python.exe"),
+                    Path.Combine(Path.GetDirectoryName(ModularPath), "python", "Scripts", "python.exe"),
+                    Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Desktop", "PROXIMITM", "python", "Scripts", "python.exe"),
+                    "python" // Fallback to system Python
+                };
+                
+                foreach (string path in possiblePaths)
+                {
+                    Debug.WriteLine($"Checking for Python at: {path}");
+                    if (File.Exists(path))
+                    {
+                        Debug.WriteLine($"Found Python at: {path}");
+                        return path;
+                    }
+                }
+                
+                // If not found, return the default "python" command which uses the system Python
+                Debug.WriteLine("No embedded Python found, falling back to system Python");
+                return "python";
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error getting Python path: {ex.Message}");
+                return "python"; // Fallback to system Python
+            }
+        }
+
+        // Create a Python wrapper script that adds parent directory to Python path
+        private string CreatePythonWrapper()
+        {
+            try
+            {
+                string wrapperContent = @"
+import os
+import sys
+import traceback
+
+print('Python wrapper script starting...')
+
+# Get the directory of this script
+script_dir = os.path.dirname(os.path.abspath(__file__))
+print(f'Script directory: {script_dir}')
+
+# Add multiple possible paths to Python's path
+possible_paths = [
+    script_dir,
+    os.path.dirname(script_dir),
+    os.path.join(os.path.dirname(script_dir), 'PROXIMITM'),
+    r'C:\Users\Sten\Desktop\PROXIMITM'
+]
+
+for path in possible_paths:
+    if path not in sys.path and os.path.exists(path):
+        sys.path.insert(0, path)
+        print(f'Added {path} to Python path')
+
+print(f'Python path: {sys.path}')
+
+# Print the arguments we received for debugging
+print(f'Original arguments: {sys.argv}')
+
+# Use the correct format from the README: python -m mitm_modular.cli [command] [args]
+try:
+    # Create a new command that properly calls the module
+    module_args = [sys.executable, '-m', 'mitm_modular.cli'] + sys.argv[1:]
+    print(f'Executing module command: {module_args}')
+    
+    # Run the process and capture the return code
+    import subprocess
+    result = subprocess.run(module_args, check=True)
+    sys.exit(result.returncode)
+except subprocess.CalledProcessError as e:
+    print(f'ERROR: Command failed with return code {e.returncode}')
+    sys.exit(e.returncode)
+except Exception as e:
+    print(f'ERROR executing CLI: {e}')
+    traceback.print_exc()
+    sys.exit(1)
+";
+                
+                // Create the wrapper script in a temporary file
+                string tempPath = Path.GetTempFileName();
+                string wrapperPath = Path.ChangeExtension(tempPath, ".py");
+                File.WriteAllText(wrapperPath, wrapperContent);
+                
+                return wrapperPath;
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error creating Python wrapper: {ex.Message}");
+                throw;
             }
         }
     }
