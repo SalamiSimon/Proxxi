@@ -198,6 +198,68 @@
                             MinWidth="100"/>
                 </Grid>
             </StackPanel>
+            
+            <!-- Python Environment -->
+            <StackPanel Style="{StaticResource SettingsGroupStyle}" Spacing="16" HorizontalAlignment="Stretch">
+                <TextBlock Text="Python Environment" 
+                           Style="{StaticResource SubtitleTextBlockStyle}" 
+                           HorizontalAlignment="Center"
+                           Margin="0,0,0,8"/>
+                
+                <Rectangle Height="1" Fill="{ThemeResource DividerStrokeColorDefaultBrush}" Margin="0,0,0,8"/>
+                
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto" MinWidth="120"/>
+                    </Grid.ColumnDefinitions>
+                    
+                    <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                        <TextBlock Text="Python Setup" 
+                                   Style="{StaticResource BodyStrongTextBlockStyle}"/>
+                        <TextBlock Text="Check Python environment and install dependencies" 
+                                   Style="{StaticResource CaptionTextBlockStyle}" 
+                                   Opacity="0.7"/>
+                    </StackPanel>
+                    
+                    <Button Grid.Column="1" 
+                            x:Name="CheckPythonButton" 
+                            Click="CheckPythonButton_Click"
+                            HorizontalAlignment="Right"
+                            MinWidth="120">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <ProgressRing x:Name="PythonCheckProgressRing" 
+                                         IsActive="False" 
+                                         Width="16" 
+                                         Height="16" 
+                                         Visibility="Collapsed"/>
+                            <TextBlock x:Name="CheckPythonButtonText" Text="Check Setup"/>
+                        </StackPanel>
+                    </Button>
+                </Grid>
+                
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto" MinWidth="120"/>
+                    </Grid.ColumnDefinitions>
+                    
+                    <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                        <TextBlock Text="Reset First Launch Flag" 
+                                   Style="{StaticResource BodyStrongTextBlockStyle}"/>
+                        <TextBlock Text="Reset the first launch flag to trigger Python check on next launch" 
+                                   Style="{StaticResource CaptionTextBlockStyle}" 
+                                   Opacity="0.7"/>
+                    </StackPanel>
+                    
+                    <Button Grid.Column="1" 
+                            x:Name="ResetFirstLaunchButton" 
+                            Content="Reset" 
+                            Click="ResetFirstLaunchButton_Click"
+                            HorizontalAlignment="Right"
+                            MinWidth="100"/>
+                </Grid>
+            </StackPanel>
         </StackPanel>
     </ScrollViewer>
 </Page> 

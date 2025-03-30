@@ -5,6 +5,14 @@ using System.Diagnostics;
 using System.IO;
 using System.Threading.Tasks;
 using System.Management;
+using System.Text.Json;
+using System.Text.Json.Serialization;
+using Microsoft.UI.Xaml.Media;
+using Microsoft.UI.Xaml.Controls.Primitives;
+using Microsoft.UI.Xaml.Input;
+using Microsoft.UI.Xaml.Media.Animation;
+using Microsoft.UI;
+using Windows.UI;
 
 namespace WinUI_V3.Pages
 {
@@ -13,13 +21,21 @@ namespace WinUI_V3.Pages
         // Paths relative to the application directory
         private readonly string ModularPath;
         private readonly string RootModularPath;
-        private readonly string PythonPath;
         
         // Process for the proxy server
         private Process? _proxyProcess = null;
         
         // Settings
         private bool _showMitmproxyLogs = false;
+        
+        // Python settings
+        private string? _systemPythonPath = null;
+        private bool _isPythonReady = false;
+        private bool _isMitmproxyInstalled = false;
+        
+        // Dialog tracking to prevent showing multiple dialogs at once
+        private static bool _isDialogOpen = false;
+        private static readonly object _dialogLock = new object();
         
         public SettingsPage()
         {
@@ -29,7 +45,6 @@ namespace WinUI_V3.Pages
             
             RootModularPath = toolsPath;
             ModularPath = Path.Combine(toolsPath, "mitm_modular");
-            PythonPath = Path.Combine(toolsPath, "python");
             
             this.InitializeComponent();
             this.Loaded += SettingsPage_Loaded;
@@ -70,6 +85,20 @@ namespace WinUI_V3.Pages
         {
             try
             {
+                // Check for Python only on first launch
+                if (IsFirstApplicationLaunch())
+                {
+                    await CheckPythonEnvironment();
+                    // Mark as launched
+                    MarkFirstLaunchComplete();
+                }
+                else
+                {
+                    // Even if we don't do the full check, we still need to check basic Python availability
+                    _isPythonReady = await FastPythonCheck();
+                    _isMitmproxyInstalled = await FastMitmproxyCheck();
+                }
+                
                 // Initialize proxy toggle state based on whether proxy is running
                 ProxyToggle.Toggled -= ProxyToggle_Toggled; // Prevent event firing during init
                 ProxyToggle.IsOn = await IsProxyRunning();
@@ -78,6 +107,9 @@ namespace WinUI_V3.Pages
                 // Load the ShowLogs setting value (could be from settings storage in the future)
                 _showMitmproxyLogs = false; // default to false
                 ShowLogsToggle.IsOn = _showMitmproxyLogs;
+                
+                // Update UI based on Python status
+                UpdatePythonStatusUI();
             }
             catch (Exception ex)
             {
@@ -85,93 +117,412 @@ namespace WinUI_V3.Pages
             }
         }
         
-        // Helper method to check if a process is our mitmdump process
-        private bool IsMitmdumpProcess(Process process)
+        private bool IsFirstApplicationLaunch()
         {
             try
             {
-                if (process.MainModule?.FileName != null)
+                string appDirectory = GetAppFolder();
+                string launchFlagPath = Path.Combine(appDirectory, "first_launch.txt");
+                
+                // If the file doesn't exist, it's the first launch
+                if (!File.Exists(launchFlagPath))
                 {
-                    string processPath = process.MainModule.FileName;
-                    // Check if this is our embedded Python running mitmdump
-                    if (processPath.Contains("python") && 
-                        (processPath.Contains(PythonPath) || processPath.Contains("Scripts\\mitmdump")))
-                    {
-                        return true;
-                    }
+                    return true;
                 }
-                return false;
+                
+                // Read the content of the file to check if it's marked as not first launch
+                string content = File.ReadAllText(launchFlagPath).Trim();
+                return content != "false";
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"Error checking process: {ex.Message}");
+                Debug.WriteLine($"Error checking first launch status: {ex.Message}");
+                // In case of error, assume it's not first launch to avoid repeated checks
                 return false;
             }
+        }
+        
+        private void MarkFirstLaunchComplete()
+        {
+            try
+            {
+                string appDirectory = GetAppFolder();
+                string launchFlagPath = Path.Combine(appDirectory, "first_launch.txt");
+                
+                // Write "false" to indicate it's no longer the first launch
+                File.WriteAllText(launchFlagPath, "false");
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error marking first launch complete: {ex.Message}");
+            }
+        }
+        
+        private void UpdatePythonStatusUI()
+        {
+            // This method would update any UI elements that depend on Python status
+            // For example, disabling the proxy toggle if Python is not available
+            ProxyToggle.IsEnabled = _isPythonReady && _isMitmproxyInstalled;
+            
+            // You could add more UI elements here that show Python status
+        }
+        
+        private async Task CheckPythonEnvironment()
+        {
+            try
+            {
+                // Show a loading dialog
+                ContentDialog loadingDialog = new ContentDialog
+                {
+                    Title = "Checking Python Environment",
+                    Content = "Checking for Python installation and required dependencies...",
+                    CloseButtonText = null, // No close button
+                    XamlRoot = this.XamlRoot
+                };
+                
+                // Show the dialog using our helper method
+                await ShowDialog(loadingDialog);
+                
+                // Run the Python checker script
+                string appDirectory = GetAppFolder();
+                string toolsDirectory = Path.Combine(appDirectory, "tools");
+                string checkerScript = Path.Combine(toolsDirectory, "check_python.py");
+                
+                if (!File.Exists(checkerScript))
+                {
+                    // Create the checker script if it doesn't exist
+                    await ShowErrorDialog("Error", "Python environment checker script not found. Please reinstall the application.");
+                    return;
+                }
+                
+                var startInfo = new ProcessStartInfo
+                {
+                    FileName = "python",
+                    Arguments = $"\"{checkerScript}\"",
+                    WorkingDirectory = toolsDirectory,
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    CreateNoWindow = true
+                };
+                
+                string output = "";
+                string error = "";
+                
+                using (var process = new Process { StartInfo = startInfo })
+                {
+                    process.Start();
+                    
+                    // Set up a timeout task to prevent hanging
+                    var outputTask = process.StandardOutput.ReadToEndAsync();
+                    var errorTask = process.StandardError.ReadToEndAsync();
+                    var processExitTask = process.WaitForExitAsync();
+                    
+                    // Create a timeout task
+                    var timeoutTask = Task.Delay(15000); // 15 second timeout
+                    
+                    // Wait for either the process to complete or the timeout to occur
+                    Task completedTask = await Task.WhenAny(processExitTask, timeoutTask);
+                    
+                    if (completedTask == timeoutTask)
+                    {
+                        // Process timed out - try to kill it and show an error
+                        Debug.WriteLine("Python checker process timed out");
+                        try
+                        {
+                            if (!process.HasExited)
+                            {
+                                process.Kill();
+                            }
+                        }
+                        catch (Exception killEx)
+                        {
+                            Debug.WriteLine($"Error killing Python checker process: {killEx.Message}");
+                        }
+                        
+                        // Hide the loading dialog
+                        try { loadingDialog.Hide(); } catch { }
+                        
+                        await ShowErrorDialog("Python Check Timeout", 
+                            "The Python environment check took too long to complete. This may indicate an issue with your Python installation.");
+                        
+                        _isPythonReady = false;
+                        _isMitmproxyInstalled = false;
+                        UpdatePythonStatusUI();
+                        return;
+                    }
+                    
+                    // If we get here, the process completed before the timeout
+                    output = await outputTask;
+                    error = await errorTask;
+                    
+                    Debug.WriteLine($"Python checker output: {output}");
+                    if (!string.IsNullOrEmpty(error))
+                        Debug.WriteLine($"Python checker error: {error}");
+                    
+                    // Parse the output JSON
+                    try
+                    {
+                        Debug.WriteLine($"Raw output from Python checker: {output}");
+                        
+                        if (string.IsNullOrWhiteSpace(output))
+                        {
+                            Debug.WriteLine("Python checker returned empty output");
+                            _isPythonReady = false;
+                            _isMitmproxyInstalled = false;
+                            
+                            // Hide the loading dialog
+                            try { loadingDialog.Hide(); } catch { }
+                            
+                            await ShowErrorDialog("Python Setup Error", 
+                                "The Python environment checker returned empty output. Please make sure Python is installed and accessible.");
+                            return;
+                        }
+                        
+                        // Extract the JSON portion between the markers
+                        string jsonText = output;
+                        const string startMarker = "###JSON_RESULT_START###";
+                        const string endMarker = "###JSON_RESULT_END###";
+                        
+                        int startIndex = output.IndexOf(startMarker);
+                        if (startIndex >= 0)
+                        {
+                            startIndex += startMarker.Length;
+                            int endIndex = output.IndexOf(endMarker, startIndex);
+                            
+                            if (endIndex > startIndex)
+                            {
+                                jsonText = output.Substring(startIndex, endIndex - startIndex).Trim();
+                                Debug.WriteLine($"Extracted JSON between markers: {jsonText}");
+                            }
+                            else
+                            {
+                                Debug.WriteLine("End marker not found in output");
+                            }
+                        }
+                        else
+                        {
+                            Debug.WriteLine("Start marker not found in output");
+                        }
+                        
+                        var result = JsonSerializer.Deserialize<PythonCheckResult>(jsonText);
+                        
+                        if (result != null)
+                        {
+                            _isPythonReady = result.python_found;
+                            _systemPythonPath = result.python_path;
+                            _isMitmproxyInstalled = result.mitmproxy_installed;
+                            
+                            // Hide the loading dialog
+                            try { loadingDialog.Hide(); } catch { }
+                            
+                            UpdatePythonStatusUI();
+                            
+                            if (!_isPythonReady)
+                            {
+                                // Python not found
+                                Debug.WriteLine("Python not found based on check result");
+                                await ShowErrorDialog("Python Not Found", 
+                                    "No suitable Python installation was found. Please install Python 3.8 or newer and try again.");
+                            }
+                            else if (!_isMitmproxyInstalled && result.mitmproxy_install_attempted && !result.mitmproxy_install_success)
+                            {
+                                // Failed to install mitmproxy
+                                await ShowErrorDialog("Dependency Installation Failed", 
+                                    "Failed to install required dependencies. You may need to run this application as administrator or manually install mitmproxy:\n\n" +
+                                    "pip install mitmproxy");
+                            }
+                            else if (_isMitmproxyInstalled)
+                            {
+                                // Everything is good - wait a moment to ensure dialog is fully dismissed
+                                await Task.Delay(500);
+                                await ShowInfoDialog("Setup Complete", 
+                                    "Python and all required dependencies are installed and ready to use.");
+                            }
+                        }
+                        else
+                        {
+                            // Hide the loading dialog
+                            try { loadingDialog.Hide(); } catch { }
+                            
+                            await ShowErrorDialog("Setup Error", 
+                                "Failed to check Python environment. You may need to manually install Python and mitmproxy.");
+                        }
+                    }
+                    catch (System.Text.Json.JsonException jsonEx)
+                    {
+                        Debug.WriteLine($"JSON parsing error from Python checker: {jsonEx.Message}");
+                        Debug.WriteLine($"Problem JSON output: {output}");
+                        
+                        // Hide the loading dialog
+                        try { loadingDialog.Hide(); } catch { }
+                        
+                        await ShowErrorDialog("Python Setup Error", 
+                            "The application couldn't properly read information from the Python checker. This may indicate Python is not correctly installed. Please ensure Python 3.8 or newer is installed on your system.");
+                        
+                        _isPythonReady = false;
+                        _isMitmproxyInstalled = false;
+                        UpdatePythonStatusUI();
+                    }
+                    catch (Exception ex)
+                    {
+                        // Hide the loading dialog
+                        try { loadingDialog.Hide(); } catch { }
+                        
+                        Debug.WriteLine($"Error parsing Python checker output: {ex.Message}");
+                        await ShowErrorDialog("Setup Error", 
+                            "Failed to check Python environment. You may need to manually install Python and mitmproxy.");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error checking Python environment: {ex.Message}");
+                await ShowErrorDialog("Setup Error", $"Failed to check Python environment: {ex.Message}");
+            }
+        }
+        
+        private class PythonCheckResult
+        {
+            public bool python_found { get; set; }
+            public string? python_path { get; set; }
+            public string? python_version { get; set; }
+            public bool mitmproxy_installed { get; set; }
+            public bool mitmproxy_install_attempted { get; set; }
+            public bool mitmproxy_install_success { get; set; }
+            public string? error { get; set; }
         }
         
         private async Task<bool> IsProxyRunning()
         {
             try
             {
-                // Check if the proxy is running by looking for mitmdump processes
-                var processes = Process.GetProcessesByName("mitmdump");
-                var pythonProcesses = Process.GetProcessesByName("python");
-                
-                // Check if any of the known processes match our criteria
-                foreach (var process in processes)
-                {
-                    try
-                    {
-                        if (IsMitmdumpProcess(process))
-                        {
-                            process.Dispose();
-                            return true;
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        Debug.WriteLine($"Error checking mitmdump process: {ex.Message}");
-                    }
-                    finally
-                    {
-                        process.Dispose();
-                    }
-                }
-                
-                // Also check python processes that might be running our mitmdump
-                foreach (var process in pythonProcesses)
-                {
-                    try 
-                    {
-                        if (IsMitmdumpProcess(process))
-                        {
-                            process.Dispose();
-                            return true;
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        Debug.WriteLine($"Error checking python process: {ex.Message}");
-                    }
-                    finally
-                    {
-                        process.Dispose();
-                    }
-                }
-                
-                // Check if the proxy process reference is still valid
+                // First, check if our process is still alive
                 if (_proxyProcess != null && !_proxyProcess.HasExited)
                 {
+                    Debug.WriteLine("Found our own proxy process still running");
                     return true;
                 }
                 
-                await Task.CompletedTask; // Add an await operation to make this truly async
+                // Check if the port is in use
+                bool isPortInUse = await IsPortInUse(45871);
+                if (isPortInUse)
+                {
+                    Debug.WriteLine("Port 45871 is in use - proxy appears to be running");
+                    return true;
+                }
+                
+                // Look for proxy processes running with Python
+                var pythonProcesses = Process.GetProcessesByName("python");
+                foreach (var process in pythonProcesses)
+                {
+                    try
+                    {
+                        string commandLine = GetCommandLine(process.Id);
+                        if (commandLine != null && 
+                            (commandLine.Contains("mitmproxy") || 
+                             commandLine.Contains("mitmdump") || 
+                             commandLine.Contains("45871")))
+                        {
+                            Debug.WriteLine($"Found Python process running mitmproxy: {process.Id}");
+                            process.Dispose();
+                            return true;
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Debug.WriteLine($"Error checking Python process {process.Id}: {ex.Message}");
+                    }
+                    finally
+                    {
+                        process.Dispose();
+                    }
+                }
+
+                // Check processes with Scripts\python.exe name
+                var scriptsPythonProcesses = Process.GetProcessesByName("python.exe");
+                foreach (var process in scriptsPythonProcesses)
+                {
+                    try
+                    {
+                        string commandLine = GetCommandLine(process.Id);
+                        if (commandLine != null && 
+                            (commandLine.Contains("mitmproxy") || 
+                             commandLine.Contains("mitmdump") || 
+                             commandLine.Contains("45871")))
+                        {
+                            Debug.WriteLine($"Found Python.exe process running mitmproxy: {process.Id}");
+                            process.Dispose();
+                            return true;
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Debug.WriteLine($"Error checking Python.exe process {process.Id}: {ex.Message}");
+                    }
+                    finally
+                    {
+                        process.Dispose();
+                    }
+                }
+                
+                Debug.WriteLine("No mitmproxy processes found and port is not in use");
                 return false;
             }
             catch (Exception ex)
             {
                 Debug.WriteLine($"Error checking if proxy is running: {ex.Message}");
-                await Task.CompletedTask; // Add an await operation to make this truly async
+                return false;
+            }
+        }
+        
+        private string GetCommandLine(int processId)
+        {
+            try
+            {
+                using var searcher = new System.Management.ManagementObjectSearcher(
+                    $"SELECT CommandLine FROM Win32_Process WHERE ProcessId = {processId}");
+                using var results = searcher.Get();
+                
+                foreach (var obj in results)
+                {
+                    return obj["CommandLine"]?.ToString();
+                }
+                return null;
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error getting command line for process {processId}: {ex.Message}");
+                return null;
+            }
+        }
+        
+        private async Task<bool> IsPortInUse(int port)
+        {
+            try
+            {
+                // Check if the port is in use using netstat
+                var startInfo = new ProcessStartInfo
+                {
+                    FileName = "netstat",
+                    Arguments = "-ano",
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    CreateNoWindow = true
+                };
+                
+                using var process = new Process { StartInfo = startInfo };
+                process.Start();
+                
+                string output = await process.StandardOutput.ReadToEndAsync();
+                await process.WaitForExitAsync();
+                
+                // Look for our port in the output
+                return output.Contains($":{port} ");
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error checking port: {ex.Message}");
                 return false;
             }
         }
@@ -248,39 +599,144 @@ namespace WinUI_V3.Pages
                     return;
                 }
                 
+                // Verify that Python and mitmproxy are available
+                if (!_isPythonReady || !_isMitmproxyInstalled)
+                {
+                    await CheckPythonEnvironment();
+                    
+                    if (!_isPythonReady || !_isMitmproxyInstalled)
+                    {
+                        throw new Exception("Python or mitmproxy is not available. Please check the Python installation.");
+                    }
+                }
+                
+                // Try to start proxy with system Python
+                bool success = await TryStartProxyWithSystemPython();
+                
+                if (!success)
+                {
+                    // Show detailed error message
+                    await ShowProxyStartupError();
+                    throw new Exception("Proxy failed to start. Please ensure mitmproxy is installed.");
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error starting proxy: {ex.Message}");
+                
+                // Clean up the process reference if it exists
+                if (_proxyProcess != null)
+                {
+                    try
+                    {
+                        if (!_proxyProcess.HasExited)
+                        {
+                            _proxyProcess.Kill();
+                        }
+                        _proxyProcess.Dispose();
+                        _proxyProcess = null;
+                    }
+                    catch (Exception disposeEx)
+                    {
+                        Debug.WriteLine($"Error disposing proxy process: {disposeEx.Message}");
+                    }
+                }
+                
+                throw new Exception($"Failed to start proxy: {ex.Message}", ex);
+            }
+        }
+        
+        private async Task<bool> TryStartProxyWithSystemPython()
+        {
+            try
+            {
+                // Check if system Python path is available
+                if (string.IsNullOrEmpty(_systemPythonPath))
+                {
+                    Debug.WriteLine("System Python path is not set");
+                    return false;
+                }
+                
+                // Check if Python executable exists
+                if (!File.Exists(_systemPythonPath))
+                {
+                    Debug.WriteLine($"System Python executable not found at {_systemPythonPath}");
+                    return false;
+                }
+                
                 // Full path to the mitm_core.py file
-                string mitm_core_path = Path.Combine(RootModularPath, "run_mitm.py");
-                string pythonExePath = Path.Combine(PythonPath, "python.exe");
-                string mitmdumpPath = Path.Combine(PythonPath, "Scripts", "mitmdump.exe");
+                string appDirectory = GetAppFolder();
+                string toolsDirectory = Path.Combine(appDirectory, "tools");
+                string mitm_core_path = Path.Combine(toolsDirectory, "run_mitm.py");
                 
-                // Verify python.exe exists
-                if (!File.Exists(pythonExePath))
+                // Check if the mitm_core.py file exists
+                if (!File.Exists(mitm_core_path))
                 {
-                    throw new Exception($"Embedded Python not found at: {pythonExePath}");
+                    Debug.WriteLine($"MITM core script not found at {mitm_core_path}");
+                    return false;
                 }
                 
-                // Verify mitmdump.exe exists
-                if (!File.Exists(mitmdumpPath))
-                {
-                    throw new Exception($"Mitmdump not found at: {mitmdumpPath}");
-                }
+                // Start mitmproxy with our script
+                Debug.WriteLine("Starting proxy using system Python...");
                 
-                // Start the proxy process using the embedded Python's mitmdump
                 var startInfo = new ProcessStartInfo
                 {
-                    FileName = mitmdumpPath,
-                    Arguments = $"-s \"{mitm_core_path}\" --set block_global=false --listen-port 45871",
-                    WorkingDirectory = Path.GetDirectoryName(RootModularPath),
-                    UseShellExecute = _showMitmproxyLogs, // Use shell execute when showing logs
+                    FileName = _systemPythonPath,
+                    Arguments = $"-m mitmproxy.tools.main dump -s \"{mitm_core_path}\" --set block_global=false --listen-port 45871",
+                    WorkingDirectory = toolsDirectory,
+                    UseShellExecute = _showMitmproxyLogs, // Show window if logs are enabled
                     RedirectStandardOutput = !_showMitmproxyLogs,
                     RedirectStandardError = !_showMitmproxyLogs,
-                    CreateNoWindow = !_showMitmproxyLogs  // Show window based on toggle setting
+                    CreateNoWindow = !_showMitmproxyLogs,
+                    WindowStyle = _showMitmproxyLogs ? ProcessWindowStyle.Normal : ProcessWindowStyle.Hidden
                 };
                 
-                _proxyProcess = new Process { StartInfo = startInfo };
-                _proxyProcess.Start();
+                // Add some helpful environment variables
+                startInfo.EnvironmentVariables["PYTHONUTF8"] = "1";                   // Force UTF-8 mode
+                startInfo.EnvironmentVariables["PYTHONIOENCODING"] = "utf-8";         // Use UTF-8 for stdin/stdout
+                startInfo.EnvironmentVariables["PYTHONUNBUFFERED"] = "1";             // Disable output buffering
+                startInfo.EnvironmentVariables["PYTHONLEGACYWINDOWSSTDIO"] = "1";     // Use legacy stdio on Windows
                 
-                // Wait longer to make sure it starts correctly - increase from 2s to 5s
+                Debug.WriteLine($"Starting proxy with system Python: {startInfo.FileName} {startInfo.Arguments}");
+                Debug.WriteLine($"Working directory: {startInfo.WorkingDirectory}");
+                
+                _proxyProcess = new Process { StartInfo = startInfo };
+                
+                // If not showing window, capture outputs
+                if (!_showMitmproxyLogs)
+                {
+                    // Always capture output for diagnostics
+                    var errorOutput = new System.Text.StringBuilder();
+                    var standardOutput = new System.Text.StringBuilder();
+                    
+                    _proxyProcess.OutputDataReceived += (sender, args) => 
+                    {
+                        if (args.Data != null)
+                        {
+                            standardOutput.AppendLine(args.Data);
+                            Debug.WriteLine($"Proxy output: {args.Data}");
+                        }
+                    };
+                    
+                    _proxyProcess.ErrorDataReceived += (sender, args) => 
+                    {
+                        if (args.Data != null)
+                        {
+                            errorOutput.AppendLine(args.Data);
+                            Debug.WriteLine($"Proxy error: {args.Data}");
+                        }
+                    };
+                    
+                    _proxyProcess.Start();
+                    _proxyProcess.BeginOutputReadLine();
+                    _proxyProcess.BeginErrorReadLine();
+                }
+                else
+                {
+                    _proxyProcess.Start();
+                }
+                
+                // Wait to make sure it starts correctly
                 await Task.Delay(5000);
                 
                 // Try multiple times to check if it's running
@@ -288,17 +744,41 @@ namespace WinUI_V3.Pages
                 {
                     if (await IsProxyRunning())
                     {
-                        return; // Success
+                        Debug.WriteLine("Proxy started successfully with system Python");
+                        return true; // Success
                     }
+                    Debug.WriteLine($"Proxy not running after attempt {i+1}, waiting...");
                     await Task.Delay(1000); // Wait an additional second between retries
                 }
                 
-                throw new Exception("Proxy failed to start after multiple attempts");
+                // If we get here, the proxy failed to start
+                Debug.WriteLine("Failed to start proxy with system Python.");
+                
+                return false;
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"Error starting proxy: {ex.Message}");
-                throw new Exception($"Failed to start proxy: {ex.Message}", ex);
+                Debug.WriteLine($"Error using system Python: {ex.Message}");
+                
+                // Clean up the process reference if it exists
+                if (_proxyProcess != null)
+                {
+                    try
+                    {
+                        if (!_proxyProcess.HasExited)
+                        {
+                            _proxyProcess.Kill();
+                        }
+                        _proxyProcess.Dispose();
+                        _proxyProcess = null;
+                    }
+                    catch (Exception disposeEx)
+                    {
+                        Debug.WriteLine($"Error disposing proxy process: {disposeEx.Message}");
+                    }
+                }
+                
+                return false;
             }
         }
         
@@ -319,7 +799,8 @@ namespace WinUI_V3.Pages
                 {
                     try
                     {
-                        if (IsMitmdumpProcess(process))
+                        var processModule = process.MainModule?.FileName;
+                        if (processModule != null && processModule.Contains("mitmdump"))
                         {
                             // Kill the process
                             process.Kill();
@@ -328,27 +809,6 @@ namespace WinUI_V3.Pages
                     catch (Exception ex)
                     {
                         Debug.WriteLine($"Error killing process: {ex.Message}");
-                    }
-                    finally
-                    {
-                        process.Dispose();
-                    }
-                }
-                
-                // Find and kill Python processes running our script
-                var pythonProcesses = Process.GetProcessesByName("python");
-                foreach (var process in pythonProcesses)
-                {
-                    try 
-                    {
-                        if (IsMitmdumpProcess(process))
-                        {
-                            process.Kill();
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        Debug.WriteLine($"Error killing Python process: {ex.Message}");
                     }
                     finally
                     {
@@ -433,32 +893,49 @@ namespace WinUI_V3.Pages
         {
             try
             {
-                // Create a batch file or shortcut in the Windows startup folder
-                string mitm_core_path = Path.Combine(RootModularPath, "run_mitm.py");
-                string mitmdumpPath = Path.Combine(PythonPath, "Scripts", "mitmdump.exe");
-                string startupCommand = $"\"{mitmdumpPath}\" -s \"{mitm_core_path}\" --set block_global=false --listen-port 45871";
-                string startupPath = Path.Combine(
-                    Environment.GetFolderPath(Environment.SpecialFolder.Startup),
-                    "MitmModular.bat");
-
+                // Check if Python path is available
+                if (string.IsNullOrEmpty(_systemPythonPath))
+                {
+                    await ShowErrorDialog("Python Not Found", "System Python path is not configured. Please check Python installation.");
+                    return;
+                }
+                
+                // Get application directory
+                string appDirectory = GetAppFolder();
+                string toolsDirectory = Path.Combine(appDirectory, "tools");
+                string mitm_core_path = Path.Combine(toolsDirectory, "run_mitm.py");
+                
+                // Create a batch file for startup
                 string batchContent;
 
                 if (_showMitmproxyLogs)
                 {
                     // Create batch file that shows the console window
                     batchContent = $"@echo off\n"
-                        + $"cd /d \"{Path.GetDirectoryName(RootModularPath)}\"\n"
-                        + $"start \"\" {startupCommand}\n"
-                        + "exit";
+                        + $"cd /d \"{toolsDirectory}\"\n"
+                        + $"set \"PYTHONUTF8=1\"\n"
+                        + $"set \"PYTHONIOENCODING=utf-8\"\n"
+                        + $"set \"PYTHONUNBUFFERED=1\"\n"
+                        + $"set \"PYTHONLEGACYWINDOWSSTDIO=1\"\n"
+                        + $"echo Starting mitmproxy with visible console...\n"
+                        + $"\"{_systemPythonPath}\" -m mitmproxy.tools.main dump -s \"{mitm_core_path}\" --set block_global=false --listen-port 45871\n"
+                        + "pause";
                 }
                 else
                 {
                     // Create batch file that fully hides the console window
                     batchContent = $"@echo off\n"
-                        + $"cd /d \"{Path.GetDirectoryName(RootModularPath)}\"\n"
-                        + $"powershell -Command \"Start-Process '{mitmdumpPath}' -ArgumentList '-s \\\"{mitm_core_path}\\\" --set block_global=false --listen-port 45871' -WindowStyle Hidden -NoNewWindow -PassThru\"\n"
-                        + "exit";
+                        + $"cd /d \"{toolsDirectory}\"\n"
+                        + $"set \"PYTHONUTF8=1\"\n"
+                        + $"set \"PYTHONIOENCODING=utf-8\"\n"
+                        + $"set \"PYTHONUNBUFFERED=1\"\n"
+                        + $"set \"PYTHONLEGACYWINDOWSSTDIO=1\"\n"
+                        + $"powershell -Command \"$env:PYTHONUTF8='1'; $env:PYTHONIOENCODING='utf-8'; $env:PYTHONUNBUFFERED='1'; $env:PYTHONLEGACYWINDOWSSTDIO='1'; Start-Process '{_systemPythonPath.Replace("\\", "\\\\")}' -ArgumentList '-m mitmproxy.tools.main dump -s \\\"{mitm_core_path.Replace("\\", "\\\\")}\\\" --set block_global=false --listen-port 45871' -WindowStyle Hidden -NoNewWindow -PassThru\"\n";
                 }
+
+                string startupPath = Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.Startup),
+                    "MitmModular.bat");
 
                 await File.WriteAllTextAsync(startupPath, batchContent);
 
@@ -533,12 +1010,18 @@ namespace WinUI_V3.Pages
                     return;
                 }
                 
-                string pythonExePath = Path.Combine(PythonPath, "python.exe");
+                // Check if Python is available
+                if (string.IsNullOrEmpty(_systemPythonPath) || !_isPythonReady)
+                {
+                    await ShowErrorDialog("Python Not Available", 
+                        "Python is not properly configured. Please check your Python installation.");
+                    return;
+                }
                 
-                // Run the CLI command to delete all targets using our embedded Python
+                // Run the CLI command to delete all targets
                 var startInfo = new ProcessStartInfo
                 {
-                    FileName = pythonExePath,
+                    FileName = _systemPythonPath,
                     Arguments = $"-m mitm_modular.cli delete-all",
                     WorkingDirectory = Path.GetDirectoryName(ModularPath),
                     UseShellExecute = false,
@@ -669,19 +1152,65 @@ namespace WinUI_V3.Pages
         {
             try
             {
-                ContentDialog errorDialog = new ContentDialog
+                // Check if a dialog is already open
+                lock (_dialogLock)
                 {
-                    Title = title,
-                    Content = message,
-                    CloseButtonText = "OK",
-                    XamlRoot = this.XamlRoot
-                };
+                    if (_isDialogOpen)
+                    {
+                        Debug.WriteLine($"Dialog already open, skipping error dialog: {title} - {message}");
+                        return;
+                    }
+                    _isDialogOpen = true;
+                }
                 
-                await errorDialog.ShowAsync();
+                try
+                {
+                    ContentDialog errorDialog = new ContentDialog
+                    {
+                        Title = title,
+                        Content = message,
+                        CloseButtonText = "OK",
+                        XamlRoot = this.XamlRoot
+                    };
+                    
+                    // Use a timeout to prevent the dialog from hanging indefinitely
+                    var dialogTask = errorDialog.ShowAsync();
+                    var timeoutTask = Task.Delay(30000); // 30 second timeout
+                    
+                    // Convert IAsyncOperation to Task
+                    Task<ContentDialogResult> wrappedDialogTask = dialogTask.AsTask();
+                    
+                    var completedTask = await Task.WhenAny(wrappedDialogTask, timeoutTask);
+                    if (completedTask == timeoutTask)
+                    {
+                        // Dialog timed out - try to hide it
+                        try
+                        {
+                            errorDialog.Hide();
+                        }
+                        catch (Exception ex)
+                        {
+                            Debug.WriteLine($"Failed to hide timed out error dialog: {ex.Message}");
+                        }
+                    }
+                }
+                finally
+                {
+                    // Always mark the dialog as closed when we're done
+                    lock (_dialogLock)
+                    {
+                        _isDialogOpen = false;
+                    }
+                }
             }
             catch (Exception ex)
             {
                 Debug.WriteLine($"Failed to show error dialog: {ex.Message}");
+                // Ensure we reset the dialog state
+                lock (_dialogLock)
+                {
+                    _isDialogOpen = false;
+                }
             }
         }
         
@@ -689,19 +1218,373 @@ namespace WinUI_V3.Pages
         {
             try
             {
-                ContentDialog infoDialog = new ContentDialog
+                // Check if a dialog is already open
+                lock (_dialogLock)
                 {
-                    Title = title,
-                    Content = message,
-                    CloseButtonText = "OK",
-                    XamlRoot = this.XamlRoot
-                };
+                    if (_isDialogOpen)
+                    {
+                        Debug.WriteLine($"Dialog already open, skipping info dialog: {title} - {message}");
+                        return;
+                    }
+                    _isDialogOpen = true;
+                }
                 
-                await infoDialog.ShowAsync();
+                try
+                {
+                    ContentDialog infoDialog = new ContentDialog
+                    {
+                        Title = title,
+                        Content = message,
+                        CloseButtonText = "OK",
+                        XamlRoot = this.XamlRoot
+                    };
+                    
+                    // Use a timeout to prevent the dialog from hanging indefinitely
+                    var dialogTask = infoDialog.ShowAsync();
+                    var timeoutTask = Task.Delay(30000); // 30 second timeout
+                    
+                    // Convert IAsyncOperation to Task
+                    Task<ContentDialogResult> wrappedDialogTask = dialogTask.AsTask();
+                    
+                    var completedTask = await Task.WhenAny(wrappedDialogTask, timeoutTask);
+                    if (completedTask == timeoutTask)
+                    {
+                        // Dialog timed out - try to hide it
+                        try
+                        {
+                            infoDialog.Hide();
+                        }
+                        catch (Exception ex)
+                        {
+                            Debug.WriteLine($"Failed to hide timed out info dialog: {ex.Message}");
+                        }
+                    }
+                }
+                finally
+                {
+                    // Always mark the dialog as closed when we're done
+                    lock (_dialogLock)
+                    {
+                        _isDialogOpen = false;
+                    }
+                }
             }
             catch (Exception ex)
             {
                 Debug.WriteLine($"Failed to show info dialog: {ex.Message}");
+                // Ensure we reset the dialog state
+                lock (_dialogLock)
+                {
+                    _isDialogOpen = false;
+                }
+            }
+        }
+        
+        private async Task ShowProxyStartupError()
+        {
+            try
+            {
+                // Check if Python is properly configured
+                if (string.IsNullOrEmpty(_systemPythonPath) || !_isPythonReady)
+                {
+                    await ShowErrorDialog("Python Not Available", 
+                        "Python is not properly configured. Please check your Python installation and try again.");
+                    return;
+                }
+                
+                // Create a buffer for diagnostics info
+                var diagnosticsOutput = new System.Text.StringBuilder();
+                diagnosticsOutput.AppendLine("=== PYTHON DIAGNOSTICS ===");
+                
+                // Check if mitmproxy is properly installed
+                try
+                {
+                    var startInfo = new ProcessStartInfo
+                    {
+                        FileName = _systemPythonPath,
+                        Arguments = "-m mitmproxy.tools.main --version",
+                        UseShellExecute = false,
+                        RedirectStandardOutput = true,
+                        RedirectStandardError = true,
+                        CreateNoWindow = true
+                    };
+                    
+                    using var process = new Process { StartInfo = startInfo };
+                    process.Start();
+                    string output = await process.StandardOutput.ReadToEndAsync();
+                    string error = await process.StandardError.ReadToEndAsync();
+                    await process.WaitForExitAsync();
+                    
+                    diagnosticsOutput.AppendLine($"mitmproxy version check exit code: {process.ExitCode}");
+                    diagnosticsOutput.AppendLine($"mitmproxy version output: {output}");
+                    if (!string.IsNullOrEmpty(error))
+                        diagnosticsOutput.AppendLine($"mitmproxy version error: {error}");
+                }
+                catch (Exception ex)
+                {
+                    diagnosticsOutput.AppendLine($"Error checking mitmproxy version: {ex.Message}");
+                }
+                
+                // Check the port 
+                try
+                {
+                    bool isPortInUse = await IsPortInUse(45871);
+                    diagnosticsOutput.AppendLine($"Port 45871 in use: {isPortInUse}");
+                }
+                catch (Exception ex)
+                {
+                    diagnosticsOutput.AppendLine($"Error checking port: {ex.Message}");
+                }
+                
+                Debug.WriteLine(diagnosticsOutput.ToString());
+                
+                // Show error dialog with detailed information
+                await ShowErrorDialog("Proxy Startup Error", 
+                    "Failed to start the MITM proxy. Try the following steps to diagnose the issue:\n\n" +
+                    "1. Ensure Python is correctly installed and in your PATH\n\n" +
+                    "2. Try manually installing mitmproxy: pip install mitmproxy\n\n" +
+                    "3. Check if port 45871 is already in use by another application\n\n" +
+                    "4. Check Windows Firewall settings to ensure Python/mitmproxy is allowed\n\n" +
+                    "The diagnostic information has been logged to the output window.");
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error in ShowProxyStartupError: {ex.Message}");
+                await ShowErrorDialog("Proxy Error", $"Failed to diagnose proxy startup error: {ex.Message}");
+            }
+        }
+
+        // Helper method to show any ContentDialog with proper tracking
+        private async Task<ContentDialogResult> ShowDialog(ContentDialog dialog)
+        {
+            ContentDialogResult result = ContentDialogResult.None;
+            
+            try
+            {
+                // Check if a dialog is already open
+                lock (_dialogLock)
+                {
+                    if (_isDialogOpen)
+                    {
+                        Debug.WriteLine($"Dialog already open, skipping dialog: {dialog.Title}");
+                        return ContentDialogResult.None;
+                    }
+                    _isDialogOpen = true;
+                }
+                
+                try
+                {
+                    // Use a timeout to prevent the dialog from hanging indefinitely
+                    var dialogTask = dialog.ShowAsync();
+                    var timeoutTask = Task.Delay(30000); // 30 second timeout
+                    
+                    // Convert IAsyncOperation to Task
+                    Task<ContentDialogResult> wrappedDialogTask = dialogTask.AsTask();
+                    
+                    var completedTask = await Task.WhenAny(wrappedDialogTask, timeoutTask);
+                    if (completedTask == timeoutTask)
+                    {
+                        // Dialog timed out - try to hide it
+                        try
+                        {
+                            dialog.Hide();
+                        }
+                        catch (Exception ex)
+                        {
+                            Debug.WriteLine($"Failed to hide timed out dialog: {ex.Message}");
+                        }
+                    }
+                    else
+                    {
+                        // Get the result from the dialog
+                        result = await wrappedDialogTask;
+                    }
+                }
+                finally
+                {
+                    // Always mark the dialog as closed when we're done
+                    lock (_dialogLock)
+                    {
+                        _isDialogOpen = false;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Failed to show dialog: {ex.Message}");
+                
+                // Ensure we reset the dialog state
+                lock (_dialogLock)
+                {
+                    _isDialogOpen = false;
+                }
+            }
+            
+            return result;
+        }
+        
+        private async void ResetFirstLaunchButton_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                // Set the button to loading state
+                ResetFirstLaunchButton.IsEnabled = false;
+                ResetFirstLaunchButton.Content = "Resetting...";
+                
+                string appDirectory = GetAppFolder();
+                string launchFlagPath = Path.Combine(appDirectory, "first_launch.txt");
+                
+                // Set the flag to true or delete the file to trigger a fresh check
+                if (File.Exists(launchFlagPath))
+                {
+                    File.WriteAllText(launchFlagPath, "true");
+                }
+                
+                await ShowInfoDialog("Reset Complete", 
+                    "The first launch flag has been reset. The Python environment check will run the next time you launch the application.");
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error resetting first launch flag: {ex.Message}");
+                await ShowErrorDialog("Reset Error", $"Failed to reset first launch flag: {ex.Message}");
+            }
+            finally
+            {
+                // Reset the button
+                ResetFirstLaunchButton.IsEnabled = true;
+                ResetFirstLaunchButton.Content = "Reset";
+            }
+        }
+        
+        private async void CheckPythonButton_Click(object sender, RoutedEventArgs e)
+        {
+            // Create a loading overlay with progress ring
+            Grid loadingOverlay = new Grid
+            {
+                Background = new SolidColorBrush(Color.FromArgb(128, 0, 0, 0)),
+                Visibility = Visibility.Visible
+            };
+            
+            StackPanel loadingPanel = new StackPanel
+            {
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center,
+                Spacing = 12
+            };
+            
+            ProgressRing progressRing = new ProgressRing
+            {
+                IsActive = true,
+                Width = 50,
+                Height = 50,
+                Foreground = new SolidColorBrush(Colors.White)
+            };
+            
+            TextBlock loadingText = new TextBlock
+            {
+                Text = "Checking Python environment...",
+                Foreground = new SolidColorBrush(Colors.White),
+                FontSize = 16,
+                HorizontalAlignment = HorizontalAlignment.Center
+            };
+            
+            loadingPanel.Children.Add(progressRing);
+            loadingPanel.Children.Add(loadingText);
+            loadingOverlay.Children.Add(loadingPanel);
+            
+            // Add the overlay to the page's grid
+            var rootGrid = VisualTreeHelper.GetParent(CheckPythonButton) as DependencyObject;
+            while (rootGrid != null && !(rootGrid is Grid))
+            {
+                rootGrid = VisualTreeHelper.GetParent(rootGrid);
+            }
+            
+            if (rootGrid is Grid mainGrid)
+            {
+                mainGrid.Children.Add(loadingOverlay);
+                Grid.SetRowSpan(loadingOverlay, 100);
+                Grid.SetColumnSpan(loadingOverlay, 100);
+            }
+            
+            try
+            {
+                // Disable the button during the check
+                CheckPythonButton.IsEnabled = false;
+                
+                // Run the Python environment check
+                await CheckPythonEnvironment();
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error checking Python environment: {ex.Message}");
+                await ShowErrorDialog("Check Error", $"Failed to check Python environment: {ex.Message}");
+            }
+            finally
+            {
+                // Remove the loading overlay
+                if (rootGrid is Grid grid)
+                {
+                    grid.Children.Remove(loadingOverlay);
+                }
+                
+                // Re-enable the button
+                CheckPythonButton.IsEnabled = true;
+            }
+        }
+        
+        private async Task<bool> FastPythonCheck()
+        {
+            try
+            {
+                // Perform a simple check to see if Python is available
+                ProcessStartInfo startInfo = new ProcessStartInfo
+                {
+                    FileName = "python",
+                    Arguments = "--version",
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    CreateNoWindow = true
+                };
+                
+                using var process = new Process { StartInfo = startInfo };
+                process.Start();
+                await process.WaitForExitAsync();
+                
+                _systemPythonPath = "python"; // Set default path
+                
+                return process.ExitCode == 0;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+        
+        private async Task<bool> FastMitmproxyCheck()
+        {
+            try
+            {
+                // Perform a simple check to see if mitmproxy is installed
+                ProcessStartInfo startInfo = new ProcessStartInfo
+                {
+                    FileName = "python",
+                    Arguments = "-c \"import mitmproxy\"",
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    CreateNoWindow = true
+                };
+                
+                using var process = new Process { StartInfo = startInfo };
+                process.Start();
+                await process.WaitForExitAsync();
+                
+                return process.ExitCode == 0;
+            }
+            catch
+            {
+                return false;
             }
         }
     }

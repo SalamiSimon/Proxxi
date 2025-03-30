@@ -23,6 +23,7 @@
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
         <!-- Header -->
@@ -63,6 +64,23 @@
                 Style="{StaticResource AccentButtonStyle}"
                 Click="AddTargetButton_Click" 
                 Margin="0,0,0,20"/>
+
+        <!-- Python environment error message -->
+        <InfoBar Grid.Row="1"
+                 x:Name="PythonErrorInfoBar"
+                 Severity="Error"
+                 Title="Python Environment Not Available"
+                 Message="Python is required for the targets functionality. Please ensure Python is installed and available in your PATH."
+                 IsOpen="False"
+                 Margin="0,40,0,0"/>
+                 
+        <!-- Loading indicator -->
+        <Grid Grid.Row="2" x:Name="LoadingGrid" Visibility="Visible">
+            <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
+                <ProgressRing x:Name="LoadingProgressRing" IsActive="True" Width="50" Height="50" Margin="0,0,0,12"/>
+                <TextBlock x:Name="StatusTextBlock" Text="Loading..." HorizontalAlignment="Center"/>
+            </StackPanel>
+        </Grid>
 
         <!-- Target Items List -->
         <ListView Grid.Row="2" 

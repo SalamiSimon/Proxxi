@@ -16,7 +16,6 @@ using Microsoft.UI;
 using Windows.UI;
 using System.Text.Json.Serialization.Metadata;
 using System.Text.RegularExpressions;
-using System.Management;
 
 namespace WinUI_V3.Pages
 {
@@ -53,6 +52,10 @@ namespace WinUI_V3.Pages
         private static readonly Regex DynamicCodeRegex = new(@"""dynamic_code""\s*:", RegexOptions.Compiled);
         private static readonly Regex StaticResponseRegex = new(@"""static_response""\s*:", RegexOptions.Compiled);
         private static readonly Regex IsEnabledRegex = new(@"""is_enabled""\s*:\s*(\d+)", RegexOptions.Compiled);
+
+        // Flag to track if a dialog is already open
+        private static readonly object _dialogLock = new();
+        private static bool _isDialogOpen = false;
 
         public TargetsPage()
         {
@@ -94,33 +97,136 @@ namespace WinUI_V3.Pages
             }
         }
 
-        private void TargetsPage_Loaded(object sender, RoutedEventArgs e)
+        private async void TargetsPage_Loaded(object sender, RoutedEventArgs e)
         {
             try
             {
-                // Load targets data
-                LoadTargets();
+                // Show loading indicators
+                if (LoadingGrid != null)
+                    LoadingGrid.Visibility = Visibility.Visible;
+                if (LoadingProgressRing != null)
+                    LoadingProgressRing.IsActive = true;
+                if (StatusTextBlock != null)
+                    StatusTextBlock.Text = "Loading...";
                 
-                // Manually update the list view instead of relying on data binding
-                UpdateTargetsList();
+                // Get the path to the database file and other locations
+                string appDlFolder = GetAppFolder();
+                // Don't reassign readonly fields
+                string dbPath = Path.Combine(appDlFolder, "tools", "targets.db");
+                string modularPath = Path.Combine(appDlFolder, "tools");
+                string samplesPath = Path.Combine(appDlFolder, "tools", "samples");
                 
-                // Check server status immediately and start the timer
+                // Store these paths in local variables instead of readonly fields
+                ModularPath = modularPath;
+                
+                // Initialize the status update timer
+                var statusTimer = new DispatcherTimer
+                {
+                    Interval = TimeSpan.FromSeconds(5)
+                };
+                statusTimer.Tick += StatusTimer_Tick;
+                statusTimer.Start();
+                
+                _isLoadingTargets = true;
+                
+                // Just do a fast check to see if Python is available
+                IsPythonEnvironmentAvailable = await IsFastPythonCheck();
+                
+                // Update UI based on Python availability
+                if (!IsPythonEnvironmentAvailable)
+                {
+                    if (StatusTextBlock != null)
+                        StatusTextBlock.Text = "Python environment not available";
+                    
+                    if (LoadingProgressRing != null)
+                        LoadingProgressRing.IsActive = false;
+                    
+                    if (LoadingGrid != null)
+                        LoadingGrid.Visibility = Visibility.Collapsed;
+                    
+                    if (PythonErrorInfoBar != null)
+                        PythonErrorInfoBar.IsOpen = true;
+                    
+                    // Add a placeholder item
+                    Targets.Clear();
+                    Targets.Add(new TargetItem
+                    {
+                        Id = 0,
+                        TargetUrl = "Python not found. Please go to Settings to check and set up Python.",
+                        HttpStatus = "Any",
+                        IsStaticResponse = true,
+                        ResponseContent = "{}",
+                        IsEnabled = true
+                    });
+                    
+                    UpdateTargetsList();
+                    _isLoadingTargets = false;
+                    return;
+                }
+                
+                // Load targets
                 UpdateServerStatus();
-                _statusTimer?.Start();
+                LoadTargets();
             }
             catch (Exception ex)
             {
                 Debug.WriteLine($"Error in TargetsPage_Loaded: {ex.Message}");
                 
-                // Now it's safe to show error dialogs
-                try
+                // Update UI to show error
+                if (StatusTextBlock != null)
+                    StatusTextBlock.Text = $"Error: {ex.Message}";
+                
+                if (LoadingProgressRing != null)
+                    LoadingProgressRing.IsActive = false;
+                
+                if (LoadingGrid != null)
+                    LoadingGrid.Visibility = Visibility.Collapsed;
+                
+                // Add a placeholder item showing the error
+                Targets.Clear();
+                Targets.Add(new TargetItem
                 {
-                ShowErrorMessage("Initialization Error", $"Failed to initialize the page: {ex.Message}");
-                }
-                catch (Exception dialogEx)
-                {
-                    Debug.WriteLine($"Failed to show error dialog: {dialogEx.Message}");
-                }
+                    Id = 0,
+                    TargetUrl = $"Error loading page: {ex.Message}",
+                    HttpStatus = "Any",
+                    IsStaticResponse = true,
+                    ResponseContent = "{}",
+                    IsEnabled = true
+                });
+                
+                UpdateTargetsList();
+                _isLoadingTargets = false;
+            }
+        }
+        
+        private async Task<bool> IsFastPythonCheck()
+        {
+            try
+            {
+                // Just check if python command is available without full environment check
+                string pythonPath = GetPythonExecutablePath();
+                
+                using var process = new Process 
+                { 
+                    StartInfo = new ProcessStartInfo
+                    {
+                        FileName = pythonPath,
+                        Arguments = "--version",
+                        UseShellExecute = false,
+                        RedirectStandardOutput = true,
+                        RedirectStandardError = true,
+                        CreateNoWindow = true
+                    }
+                };
+                
+                process.Start();
+                await process.WaitForExitAsync();
+                
+                return process.ExitCode == 0;
+            }
+            catch
+            {
+                return false;
             }
         }
         
@@ -158,90 +264,25 @@ namespace WinUI_V3.Pages
             }
         }
         
-        // Helper method to check if a process is our mitmdump process
-        private static bool IsMitmdumpProcess(Process process)
-        {
-            try
-            {
-                if (process.MainModule?.FileName != null)
-                {
-                    string processPath = process.MainModule.FileName;
-                    string appDirectory = GetAppFolder();
-                    string toolsPath = Path.Combine(appDirectory, "tools");
-                    
-                    // Check if this is our embedded Python running mitmdump
-                    if (processPath.Contains("python") && 
-                        (processPath.Contains(toolsPath) || processPath.Contains("Scripts\\mitmdump")))
-                    {
-                        return true;
-                    }
-                }
-                return false;
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine($"Error checking process: {ex.Message}");
-                return false;
-            }
-        }
-        
         private static async Task<bool> IsProxyRunning()
         {
             try
             {
                 // Check if the proxy is running by looking for mitmdump processes
                 var processes = Process.GetProcessesByName("mitmdump");
-                var pythonProcesses = Process.GetProcessesByName("python");
                 
-                // Check if any of the known processes match our criteria
-                foreach (var process in processes)
+                if (processes.Length > 0)
                 {
-                    try
-                    {
-                        if (IsMitmdumpProcess(process))
-                        {
-                            process.Dispose();
-                            return true;
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        Debug.WriteLine($"Error checking mitmdump process: {ex.Message}");
-                    }
-                    finally
-                    {
-                        process.Dispose();
-                    }
+                    // Found mitmdump processes - consider the proxy running
+                    await Task.CompletedTask;
+                    return true;
                 }
                 
-                // Also check python processes that might be running our mitmdump
-                foreach (var process in pythonProcesses)
-                {
-                    try 
-                    {
-                        if (IsMitmdumpProcess(process))
-                        {
-                            process.Dispose();
-                            return true;
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        Debug.WriteLine($"Error checking python process: {ex.Message}");
-                    }
-                    finally
-                    {
-                        process.Dispose();
-                    }
-                }
-                
-                await Task.CompletedTask; // Add an await operation to make this truly async
                 return false;
             }
             catch (Exception ex)
             {
                 Debug.WriteLine($"Error checking if proxy is running: {ex.Message}");
-                await Task.CompletedTask; // Add an await operation to make this truly async
                 return false;
             }
         }
@@ -269,12 +310,18 @@ namespace WinUI_V3.Pages
                 // Update UI immediately to show loading state
                 UpdateTargetsList();
                 
+                // Make sure the loading grid is visible
+                if (LoadingGrid != null)
+                    LoadingGrid.Visibility = Visibility.Visible;
+                if (LoadingProgressRing != null)
+                    LoadingProgressRing.IsActive = true;
+                
                 Debug.WriteLine($"Starting target loading process");
                 Debug.WriteLine($"Database path: {DbPath}, exists: {File.Exists(DbPath)}");
                 Debug.WriteLine($"Module path: {ModularPath}, exists: {Directory.Exists(ModularPath)}");
                 
                 // Check if Python is available before attempting to use it
-                bool pythonAvailable = await IsPythonAvailable();
+                bool pythonAvailable = await IsFastPythonCheck();
                 Debug.WriteLine($"Python available: {pythonAvailable}");
                 
                 if (!pythonAvailable)
@@ -284,7 +331,7 @@ namespace WinUI_V3.Pages
                     Targets.Add(new TargetItem
                     {
                         Id = 0,
-                        TargetUrl = "Python not found. Please install Python and ensure it's available in your PATH.",
+                        TargetUrl = "Python not found. Please go to Settings to check and set up Python.",
                         HttpStatus = "Any",
                         IsStaticResponse = true,
                         ResponseContent = "{}",
@@ -293,73 +340,30 @@ namespace WinUI_V3.Pages
                     
                     UpdateTargetsList();
                     
-                    // Show error dialog
-                    await Task.Delay(100); // Brief delay to ensure UI is updated
-                    ShowErrorMessage(
-                        "Python Not Found", 
-                        "Python is required for the targets functionality. Please ensure Python is installed and available in your PATH."
-                    );
+                    // Hide loading indicators
+                    if (LoadingGrid != null)
+                        LoadingGrid.Visibility = Visibility.Collapsed;
+                    if (LoadingProgressRing != null)
+                        LoadingProgressRing.IsActive = false;
+                    if (StatusTextBlock != null)
+                        StatusTextBlock.Text = "Python environment not available";
+                    if (PythonErrorInfoBar != null)
+                        PythonErrorInfoBar.IsOpen = true;
                     
                     _isLoadingTargets = false;
                     return;
                 }
                 
-                // If the database file doesn't exist, create an empty one or show a message
-                if (!File.Exists(DbPath))
-                {
-                    Debug.WriteLine($"Database file not found at: {DbPath}");
-                    // Try to find any db file in the directory
-                    string? dbDir = Path.GetDirectoryName(DbPath);
-                    if (dbDir != null && Directory.Exists(dbDir))
-                    {
-                        var dbFiles = Directory.GetFiles(dbDir, "*.db");
-                        if (dbFiles.Length > 0)
-                        {
-                            Debug.WriteLine($"Found other DB files: {string.Join(", ", dbFiles)}");
-                        }
-                        else
-                        {
-                            Debug.WriteLine($"No .db files found in {dbDir}");
-                        }
-                    }
-                    
-                    // Add a sample item for demonstration
-                    Targets.Clear();
-                    Targets.Add(new TargetItem
-                    {
-                        Id = 0,
-                        TargetUrl = "No targets found. Database file not found at: " + DbPath,
-                        HttpStatus = "Any",
-                        IsStaticResponse = true,
-                        ResponseContent = "{}",
-                        IsEnabled = true
-                    });
-                    
-                    UpdateTargetsList();
-                    _isLoadingTargets = false;
-                    return;
-                }
+                // Run the CLI command to get the targets
+                var targetsCollection = await RunCliCommandAsync("json-list-all");
                 
-                try
-                {
-                    // Remove the --db parameter since it's causing issues and isn't needed
-                    Debug.WriteLine("Running CLI command to get targets");
-                var results = await RunCliCommandAsync("json-list-all");
-                    Debug.WriteLine($"Got {results.Count} targets from CLI");
-                    
-                    // Clear the loading placeholder
-                    Targets.Clear();
+                // Process the results
+                _isLoadingTargets = false;
                 
-                // For each target returned by the CLI, add it to our observable collection
-                foreach (var target in results)
-                {
-                    Targets.Add(target);
-                }
+                Targets.Clear();
                 
-                // If no targets were found, add a placeholder
-                if (Targets.Count == 0)
+                if (targetsCollection.Count == 0)
                 {
-                        Debug.WriteLine("No targets found, adding placeholder");
                     Targets.Add(new TargetItem
                     {
                         Id = 0,
@@ -370,39 +374,33 @@ namespace WinUI_V3.Pages
                         IsEnabled = true
                     });
                 }
-                }
-                catch (Exception cliEx)
+                else
                 {
-                    Debug.WriteLine($"Error running CLI command: {cliEx.Message}");
-                    
-                    // Add a placeholder item indicating the error
-                    Targets.Clear();
-                    Targets.Add(new TargetItem
+                    foreach (var target in targetsCollection)
                     {
-                        Id = 0,
-                        TargetUrl = $"Error loading targets: {cliEx.Message}",
-                        HttpStatus = "Any",
-                        IsStaticResponse = true,
-                        ResponseContent = "{}",
-                        IsEnabled = true
-                    });
-                    
-                    // Show error dialog
-                    ShowErrorMessage("Error Loading Targets", $"Failed to load targets: {cliEx.Message}");
+                        Targets.Add(target);
+                    }
                 }
                 
-                // Update the ListView with the current items
+                // Update the list view
                 UpdateTargetsList();
                 
-                // Reset the loading flag
-                _isLoadingTargets = false;
+                // Hide loading indicators
+                if (LoadingGrid != null)
+                    LoadingGrid.Visibility = Visibility.Collapsed;
+                if (LoadingProgressRing != null)
+                    LoadingProgressRing.IsActive = false;
+                if (StatusTextBlock != null)
+                    StatusTextBlock.Text = "Targets loaded successfully";
             }
             catch (Exception ex)
             {
-                // Log the error but don't crash
                 Debug.WriteLine($"Error loading targets: {ex.Message}");
                 
-                // Add a placeholder item indicating the error
+                // Update the flag
+                _isLoadingTargets = false;
+                
+                // Clear the list and add an error placeholder
                 Targets.Clear();
                 Targets.Add(new TargetItem
                 {
@@ -414,14 +412,19 @@ namespace WinUI_V3.Pages
                     IsEnabled = true
                 });
                 
-                // Update the ListView with the error item
+                // Update the list view to show error
                 UpdateTargetsList();
                 
-                // Show error dialog
-                ShowErrorMessage("Error Loading Targets", $"Failed to load targets: {ex.Message}");
+                // Hide loading indicators
+                if (LoadingGrid != null)
+                    LoadingGrid.Visibility = Visibility.Collapsed;
+                if (LoadingProgressRing != null)
+                    LoadingProgressRing.IsActive = false;
+                if (StatusTextBlock != null)
+                    StatusTextBlock.Text = $"Error: {ex.Message}";
                 
-                // Reset the loading flag
-                _isLoadingTargets = false;
+                // Show the error message
+                ShowErrorMessage("Load Error", $"Failed to load targets: {ex.Message}");
             }
         }
         
@@ -491,17 +494,12 @@ namespace WinUI_V3.Pages
             {
                 Debug.WriteLine($"Checking for Python module availability: {moduleName}");
                 
-                // Get the python executable path - use a static method to avoid instance requirement
-                string pythonPath = "python";
-                try {
-                    string appDirectory = GetAppFolder();
-                    string toolsDirectory = Path.Combine(appDirectory, "tools");
-                    string embeddedPythonPath = Path.Combine(toolsDirectory, "python", "python.exe");
-                    if (File.Exists(embeddedPythonPath)) {
-                        pythonPath = embeddedPythonPath;
-                    }
-                } catch {
-                    // Fallback to system Python on any error
+                // Get the Python path using the utility method
+                string pythonPath = await GetSystemPython();
+                if (string.IsNullOrEmpty(pythonPath))
+                {
+                    Debug.WriteLine("No Python found for module check");
+                    return false;
                 }
                 
                 var startInfo = new ProcessStartInfo
@@ -554,26 +552,113 @@ namespace WinUI_V3.Pages
             }
         }
         
+        // Helper method to find system Python
+        private static async Task<string> GetSystemPython()
+        {
+            try
+            {
+                var startInfo = new ProcessStartInfo
+                {
+                    FileName = "where",
+                    Arguments = "python",
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    CreateNoWindow = true
+                };
+                
+                using var process = new Process { StartInfo = startInfo };
+                process.Start();
+                string output = await process.StandardOutput.ReadToEndAsync();
+                await process.WaitForExitAsync();
+                
+                if (process.ExitCode == 0 && !string.IsNullOrEmpty(output))
+                {
+                    // Get the first line as the python path
+                    string pythonPath = output.Split('\n')[0].Trim();
+                    if (File.Exists(pythonPath))
+                    {
+                        Debug.WriteLine($"Found system Python at: {pythonPath}");
+                        return pythonPath;
+                    }
+                }
+                
+                // Fallback to just "python"
+                return "python";
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error finding system Python: {ex.Message}");
+                return "python"; // Return the command name as fallback
+            }
+        }
+
         // Show an error message dialog
         private async void ShowErrorMessage(string title, string message)
         {
             try
             {
-                ContentDialog errorDialog = new()
+                // Check if a dialog is already open
+                lock (_dialogLock)
                 {
-                    Title = title,
-                    Content = message,
-                    CloseButtonText = "OK",
-                    XamlRoot = this.XamlRoot
-                };
+                    if (_isDialogOpen)
+                    {
+                        Debug.WriteLine($"Dialog already open, skipping error message: {title} - {message}");
+                        return;
+                    }
+                    _isDialogOpen = true;
+                }
                 
-                await errorDialog.ShowAsync();
+                try
+                {
+                    ContentDialog errorDialog = new()
+                    {
+                        Title = title,
+                        Content = message,
+                        CloseButtonText = "OK",
+                        XamlRoot = this.XamlRoot
+                    };
+                    
+                    // Use a timeout to prevent the dialog from hanging indefinitely
+                    var dialogTask = errorDialog.ShowAsync();
+                    var timeoutTask = Task.Delay(30000); // 30 second timeout
+                    
+                    // Convert IAsyncOperation to Task
+                    Task<ContentDialogResult> wrappedDialogTask = dialogTask.AsTask();
+                    
+                    var completedTask = await Task.WhenAny(wrappedDialogTask, timeoutTask);
+                    if (completedTask == timeoutTask)
+                    {
+                        // Dialog timed out - try to hide it
+                        try
+                        {
+                            errorDialog.Hide();
+                        }
+                        catch (Exception ex)
+                        {
+                            Debug.WriteLine($"Failed to hide timed out error dialog: {ex.Message}");
+                        }
+                    }
+                }
+                finally
+                {
+                    // Always mark the dialog as closed when we're done
+                    lock (_dialogLock)
+                    {
+                        _isDialogOpen = false;
+                    }
+                }
             }
             catch (Exception ex)
             {
                 // If we can't even show the dialog, log to debug output
                 Debug.WriteLine($"Failed to show error dialog: {ex.Message}");
                 Debug.WriteLine($"Original error: {title} - {message}");
+                
+                // Ensure we reset the dialog state
+                lock (_dialogLock)
+                {
+                    _isDialogOpen = false;
+                }
             }
         }
 
@@ -2189,46 +2274,105 @@ namespace WinUI_V3.Pages
             }
         }
 
-        // Update the python executable path to use the embedded version
+        // Update to use system Python instead of embedded Python
         private string GetPythonExecutablePath()
         {
             try
             {
-                // First, check if the embedded Python exists
-                string appDirectory = GetAppFolder();
-                string toolsDirectory = Path.Combine(appDirectory, "tools");
-                string embeddedPythonPath = Path.Combine(toolsDirectory, "python", "python.exe");
-                string embeddedPythonScriptsPath = Path.Combine(toolsDirectory, "python", "Scripts", "python.exe");
-                
-                // Try multiple locations for the embedded Python
-                string[] possiblePaths =
-                [
-                    embeddedPythonPath,
-                    embeddedPythonScriptsPath,
-                    Path.Combine(toolsDirectory, "python", "python.exe"),
-                    Path.Combine(Directory.GetCurrentDirectory(), "tools", "python", "python.exe"),
-                    Path.Combine(Path.GetDirectoryName(ModularPath) ?? string.Empty, "python", "python.exe"),
-                    "python" // Fallback to system Python only as last resort
-                ];
-                
-                foreach (string path in possiblePaths)
+                // First check if we have a "python" command available in PATH
+                var startInfo = new ProcessStartInfo
                 {
-                    Debug.WriteLine($"Checking for Python at: {path}");
-                    if (File.Exists(path))
+                    FileName = "where",
+                    Arguments = "python",
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    CreateNoWindow = true
+                };
+                
+                using var process = new Process { StartInfo = startInfo };
+                process.Start();
+                string output = process.StandardOutput.ReadToEnd();
+                process.WaitForExit();
+                
+                if (process.ExitCode == 0 && !string.IsNullOrEmpty(output))
+                {
+                    // Get the first line as the python path
+                    string pythonPath = output.Split('\n')[0].Trim();
+                    if (File.Exists(pythonPath))
                     {
-                        Debug.WriteLine($"Found Python at: {path}");
-                        return path;
+                        Debug.WriteLine($"Using system Python found in PATH: {pythonPath}");
+                        return pythonPath;
                     }
                 }
                 
-                // If not found, return the default "python" command which uses the system Python
-                Debug.WriteLine("No embedded Python found, falling back to system Python");
+                // Fallback to default Python locations
+                string[] commonPythonPaths = new string[]
+                {
+                    "python.exe",
+                    "python3.exe",
+                    Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Programs", "Python", "Python39", "python.exe"),
+                    Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Programs", "Python", "Python310", "python.exe"),
+                    Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Programs", "Python", "Python311", "python.exe"),
+                    Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "Python39", "python.exe"),
+                    Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "Python310", "python.exe"),
+                    Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "Python311", "python.exe")
+                };
+                
+                foreach (string path in commonPythonPaths)
+                {
+                    try
+                    {
+                        if (Path.IsPathRooted(path))
+                        {
+                            if (File.Exists(path))
+                            {
+                                Debug.WriteLine($"Using Python from common location: {path}");
+                                return path;
+                            }
+                        }
+                        else
+                        {
+                            // Try to resolve the command through PATH
+                            var cmdStartInfo = new ProcessStartInfo
+                            {
+                                FileName = "where",
+                                Arguments = path,
+                                UseShellExecute = false,
+                                RedirectStandardOutput = true,
+                                CreateNoWindow = true
+                            };
+                            
+                            using var cmdProcess = new Process { StartInfo = cmdStartInfo };
+                            cmdProcess.Start();
+                            string cmdOutput = cmdProcess.StandardOutput.ReadToEnd();
+                            cmdProcess.WaitForExit();
+                            
+                            if (cmdProcess.ExitCode == 0 && !string.IsNullOrEmpty(cmdOutput))
+                            {
+                                string resolvedPath = cmdOutput.Split('\n')[0].Trim();
+                                if (File.Exists(resolvedPath))
+                                {
+                                    Debug.WriteLine($"Using Python from PATH resolution: {resolvedPath}");
+                                    return resolvedPath;
+                                }
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Debug.WriteLine($"Error checking Python path {path}: {ex.Message}");
+                    }
+                }
+                
+                // Last resort, just return "python" and hope it's in the PATH
+                Debug.WriteLine("No Python found, defaulting to 'python' command");
                 return "python";
             }
             catch (Exception ex)
             {
                 Debug.WriteLine($"Error getting Python path: {ex.Message}");
-                return "python"; // Fallback to system Python
+                // Return the most likely name for Python as a fallback
+                return "python";
             }
         }
 
@@ -2301,19 +2445,88 @@ except Exception as e:
                 throw;
             }
         }
-    }
 
-    // Model class for target items
-    public class TargetItem
-    {
-        public int Id { get; set; }
-        public string TargetUrl { get; set; } = string.Empty;
-        public string? HttpStatus { get; set; } = "200";
-        public string? TargetHttpStatus { get; set; }
-        public bool IsStaticResponse { get; set; } = true;
-        public bool IsNoModification { get; set; } = false;
-        public string ModificationType { get; set; } = "static";
-        public string ResponseContent { get; set; } = string.Empty;
-        public bool IsEnabled { get; set; } = true;
+        // Helper method to show any ContentDialog with proper tracking
+        private async Task<ContentDialogResult> ShowDialog(ContentDialog dialog)
+        {
+            ContentDialogResult result = ContentDialogResult.None;
+            
+            try
+            {
+                // Check if a dialog is already open
+                lock (_dialogLock)
+                {
+                    if (_isDialogOpen)
+                    {
+                        Debug.WriteLine($"Dialog already open, skipping dialog: {dialog.Title}");
+                        return ContentDialogResult.None;
+                    }
+                    _isDialogOpen = true;
+                }
+                
+                try
+                {
+                    // Use a timeout to prevent the dialog from hanging indefinitely
+                    var dialogTask = dialog.ShowAsync();
+                    var timeoutTask = Task.Delay(30000); // 30 second timeout
+                    
+                    // Convert IAsyncOperation to Task
+                    Task<ContentDialogResult> wrappedDialogTask = dialogTask.AsTask();
+                    
+                    var completedTask = await Task.WhenAny(wrappedDialogTask, timeoutTask);
+                    if (completedTask == timeoutTask)
+                    {
+                        // Dialog timed out - try to hide it
+                        try
+                        {
+                            dialog.Hide();
+                        }
+                        catch (Exception ex)
+                        {
+                            Debug.WriteLine($"Failed to hide timed out dialog: {ex.Message}");
+                        }
+                    }
+                    else
+                    {
+                        // Get the result from the dialog
+                        result = await wrappedDialogTask;
+                    }
+                }
+                finally
+                {
+                    // Always mark the dialog as closed when we're done
+                    lock (_dialogLock)
+                    {
+                        _isDialogOpen = false;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Failed to show dialog: {ex.Message}");
+                
+                // Ensure we reset the dialog state
+                lock (_dialogLock)
+                {
+                    _isDialogOpen = false;
+                }
+            }
+            
+            return result;
+        }
+
+        // Model class for target items
+        public class TargetItem
+        {
+            public int Id { get; set; }
+            public string TargetUrl { get; set; } = string.Empty;
+            public string? HttpStatus { get; set; } = "200";
+            public string? TargetHttpStatus { get; set; }
+            public bool IsStaticResponse { get; set; } = true;
+            public bool IsNoModification { get; set; } = false;
+            public string ModificationType { get; set; } = "static";
+            public string ResponseContent { get; set; } = string.Empty;
+            public bool IsEnabled { get; set; } = true;
+        }
     }
-} 
+}

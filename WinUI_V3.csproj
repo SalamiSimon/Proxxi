@@ -11,6 +11,7 @@
     <UseWinUI>true</UseWinUI>
     <EnableMsixTooling>true</EnableMsixTooling>
     <Nullable>enable</Nullable>
+    <Platform Condition="'$(Platform)'==''">x64</Platform>
   </PropertyGroup>
 
   <ItemGroup>
@@ -98,5 +99,12 @@
 
   <ItemGroup>
 	  <None Include="tools\**" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <!-- Include Python checker script -->
+  <ItemGroup>
+    <Content Include="tools\check_python.py">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
   </ItemGroup>
 </Project>
