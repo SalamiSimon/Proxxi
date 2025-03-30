@@ -88,9 +88,26 @@ namespace WinUI_V3.Pages
                 // Check for Python only on first launch
                 if (IsFirstApplicationLaunch())
                 {
-                    await CheckPythonEnvironment();
-                    // Mark as launched
-                    MarkFirstLaunchComplete();
+                    // Show loading indicator on the Python check button
+                    CheckPythonButton.IsEnabled = false;
+                    PythonCheckProgressRing.IsActive = true;
+                    PythonCheckProgressRing.Visibility = Visibility.Visible;
+                    CheckPythonButtonText.Text = "Checking...";
+                    
+                    try
+                    {
+                        await CheckPythonEnvironment();
+                        // Mark as launched
+                        MarkFirstLaunchComplete();
+                    }
+                    finally
+                    {
+                        // Reset the button state
+                        CheckPythonButton.IsEnabled = true;
+                        PythonCheckProgressRing.IsActive = false;
+                        PythonCheckProgressRing.Visibility = Visibility.Collapsed;
+                        CheckPythonButtonText.Text = "Check Setup";
+                    }
                 }
                 else
                 {
@@ -171,18 +188,6 @@ namespace WinUI_V3.Pages
         {
             try
             {
-                // Show a loading dialog
-                ContentDialog loadingDialog = new ContentDialog
-                {
-                    Title = "Checking Python Environment",
-                    Content = "Checking for Python installation and required dependencies...",
-                    CloseButtonText = null, // No close button
-                    XamlRoot = this.XamlRoot
-                };
-                
-                // Show the dialog using our helper method
-                await ShowDialog(loadingDialog);
-                
                 // Run the Python checker script
                 string appDirectory = GetAppFolder();
                 string toolsDirectory = Path.Combine(appDirectory, "tools");
@@ -190,7 +195,6 @@ namespace WinUI_V3.Pages
                 
                 if (!File.Exists(checkerScript))
                 {
-                    // Create the checker script if it doesn't exist
                     await ShowErrorDialog("Error", "Python environment checker script not found. Please reinstall the application.");
                     return;
                 }
@@ -240,9 +244,6 @@ namespace WinUI_V3.Pages
                             Debug.WriteLine($"Error killing Python checker process: {killEx.Message}");
                         }
                         
-                        // Hide the loading dialog
-                        try { loadingDialog.Hide(); } catch { }
-                        
                         await ShowErrorDialog("Python Check Timeout", 
                             "The Python environment check took too long to complete. This may indicate an issue with your Python installation.");
                         
@@ -270,9 +271,6 @@ namespace WinUI_V3.Pages
                             Debug.WriteLine("Python checker returned empty output");
                             _isPythonReady = false;
                             _isMitmproxyInstalled = false;
-                            
-                            // Hide the loading dialog
-                            try { loadingDialog.Hide(); } catch { }
                             
                             await ShowErrorDialog("Python Setup Error", 
                                 "The Python environment checker returned empty output. Please make sure Python is installed and accessible.");
@@ -313,9 +311,6 @@ namespace WinUI_V3.Pages
                             _systemPythonPath = result.python_path;
                             _isMitmproxyInstalled = result.mitmproxy_installed;
                             
-                            // Hide the loading dialog
-                            try { loadingDialog.Hide(); } catch { }
-                            
                             UpdatePythonStatusUI();
                             
                             if (!_isPythonReady)
@@ -342,9 +337,6 @@ namespace WinUI_V3.Pages
                         }
                         else
                         {
-                            // Hide the loading dialog
-                            try { loadingDialog.Hide(); } catch { }
-                            
                             await ShowErrorDialog("Setup Error", 
                                 "Failed to check Python environment. You may need to manually install Python and mitmproxy.");
                         }
@@ -353,9 +345,6 @@ namespace WinUI_V3.Pages
                     {
                         Debug.WriteLine($"JSON parsing error from Python checker: {jsonEx.Message}");
                         Debug.WriteLine($"Problem JSON output: {output}");
-                        
-                        // Hide the loading dialog
-                        try { loadingDialog.Hide(); } catch { }
                         
                         await ShowErrorDialog("Python Setup Error", 
                             "The application couldn't properly read information from the Python checker. This may indicate Python is not correctly installed. Please ensure Python 3.8 or newer is installed on your system.");
@@ -366,9 +355,6 @@ namespace WinUI_V3.Pages
                     }
                     catch (Exception ex)
                     {
-                        // Hide the loading dialog
-                        try { loadingDialog.Hide(); } catch { }
-                        
                         Debug.WriteLine($"Error parsing Python checker output: {ex.Message}");
                         await ShowErrorDialog("Setup Error", 
                             "Failed to check Python environment. You may need to manually install Python and mitmproxy.");
@@ -650,17 +636,39 @@ namespace WinUI_V3.Pages
         {
             try
             {
-                // Check if system Python path is available
-                if (string.IsNullOrEmpty(_systemPythonPath))
+                // Check if mitmdump is directly executable
+                bool mitmdumpExists = false;
+                try
                 {
-                    Debug.WriteLine("System Python path is not set");
-                    return false;
+                    var checkInfo = new ProcessStartInfo
+                    {
+                        FileName = "where",
+                        Arguments = "mitmdump",
+                        UseShellExecute = false,
+                        RedirectStandardOutput = true,
+                        CreateNoWindow = true
+                    };
+                    
+                    using var checkProcess = new Process { StartInfo = checkInfo };
+                    checkProcess.Start();
+                    string output = await checkProcess.StandardOutput.ReadToEndAsync();
+                    await checkProcess.WaitForExitAsync();
+                    
+                    mitmdumpExists = checkProcess.ExitCode == 0 && !string.IsNullOrEmpty(output);
+                    Debug.WriteLine($"mitmdump exists in PATH: {mitmdumpExists}");
+                    if (mitmdumpExists)
+                    {
+                        Debug.WriteLine($"mitmdump path: {output.Trim()}");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"Error checking mitmdump: {ex.Message}");
                 }
                 
-                // Check if Python executable exists
-                if (!File.Exists(_systemPythonPath))
+                if (!mitmdumpExists)
                 {
-                    Debug.WriteLine($"System Python executable not found at {_systemPythonPath}");
+                    Debug.WriteLine("mitmdump not found in PATH");
                     return false;
                 }
                 
@@ -677,12 +685,12 @@ namespace WinUI_V3.Pages
                 }
                 
                 // Start mitmproxy with our script
-                Debug.WriteLine("Starting proxy using system Python...");
+                Debug.WriteLine("Starting proxy using mitmdump directly...");
                 
                 var startInfo = new ProcessStartInfo
                 {
-                    FileName = _systemPythonPath,
-                    Arguments = $"-m mitmproxy.tools.main dump -s \"{mitm_core_path}\" --set block_global=false --listen-port 45871",
+                    FileName = "mitmdump",
+                    Arguments = $"-s \"{mitm_core_path}\" --set block_global=false --listen-port 45871",
                     WorkingDirectory = toolsDirectory,
                     UseShellExecute = _showMitmproxyLogs, // Show window if logs are enabled
                     RedirectStandardOutput = !_showMitmproxyLogs,
@@ -893,11 +901,34 @@ namespace WinUI_V3.Pages
         {
             try
             {
-                // Check if Python path is available
-                if (string.IsNullOrEmpty(_systemPythonPath))
+                // Get the actual path to mitmdump
+                string mitmdumpPath = "mitmdump"; // Default fallback
+                try
                 {
-                    await ShowErrorDialog("Python Not Found", "System Python path is not configured. Please check Python installation.");
-                    return;
+                    var checkInfo = new ProcessStartInfo
+                    {
+                        FileName = "where",
+                        Arguments = "mitmdump",
+                        UseShellExecute = false,
+                        RedirectStandardOutput = true,
+                        CreateNoWindow = true
+                    };
+                    
+                    using var checkProcess = new Process { StartInfo = checkInfo };
+                    checkProcess.Start();
+                    string output = await checkProcess.StandardOutput.ReadToEndAsync();
+                    await checkProcess.WaitForExitAsync();
+                    
+                    if (checkProcess.ExitCode == 0 && !string.IsNullOrEmpty(output))
+                    {
+                        // Take the first line if multiple paths are returned
+                        mitmdumpPath = output.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)[0];
+                        Debug.WriteLine($"Found mitmdump at: {mitmdumpPath}");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"Error finding mitmdump path: {ex.Message}");
                 }
                 
                 // Get application directory
@@ -918,7 +949,7 @@ namespace WinUI_V3.Pages
                         + $"set \"PYTHONUNBUFFERED=1\"\n"
                         + $"set \"PYTHONLEGACYWINDOWSSTDIO=1\"\n"
                         + $"echo Starting mitmproxy with visible console...\n"
-                        + $"\"{_systemPythonPath}\" -m mitmproxy.tools.main dump -s \"{mitm_core_path}\" --set block_global=false --listen-port 45871\n"
+                        + $"\"{mitmdumpPath}\" -s \"{mitm_core_path}\" --set block_global=false --listen-port 45871\n"
                         + "pause";
                 }
                 else
@@ -930,7 +961,7 @@ namespace WinUI_V3.Pages
                         + $"set \"PYTHONIOENCODING=utf-8\"\n"
                         + $"set \"PYTHONUNBUFFERED=1\"\n"
                         + $"set \"PYTHONLEGACYWINDOWSSTDIO=1\"\n"
-                        + $"powershell -Command \"$env:PYTHONUTF8='1'; $env:PYTHONIOENCODING='utf-8'; $env:PYTHONUNBUFFERED='1'; $env:PYTHONLEGACYWINDOWSSTDIO='1'; Start-Process '{_systemPythonPath.Replace("\\", "\\\\")}' -ArgumentList '-m mitmproxy.tools.main dump -s \\\"{mitm_core_path.Replace("\\", "\\\\")}\\\" --set block_global=false --listen-port 45871' -WindowStyle Hidden -NoNewWindow -PassThru\"\n";
+                        + $"powershell -Command \"$env:PYTHONUTF8='1'; $env:PYTHONIOENCODING='utf-8'; $env:PYTHONUNBUFFERED='1'; $env:PYTHONLEGACYWINDOWSSTDIO='1'; Start-Process '{mitmdumpPath.Replace("\\", "\\\\")}' -ArgumentList '-s \\\"{mitm_core_path.Replace("\\", "\\\\")}\\\" --set block_global=false --listen-port 45871' -WindowStyle Hidden -NoNewWindow -PassThru\"\n";
                 }
 
                 string startupPath = Path.Combine(
@@ -1458,58 +1489,13 @@ namespace WinUI_V3.Pages
         
         private async void CheckPythonButton_Click(object sender, RoutedEventArgs e)
         {
-            // Create a loading overlay with progress ring
-            Grid loadingOverlay = new Grid
-            {
-                Background = new SolidColorBrush(Color.FromArgb(128, 0, 0, 0)),
-                Visibility = Visibility.Visible
-            };
-            
-            StackPanel loadingPanel = new StackPanel
-            {
-                HorizontalAlignment = HorizontalAlignment.Center,
-                VerticalAlignment = VerticalAlignment.Center,
-                Spacing = 12
-            };
-            
-            ProgressRing progressRing = new ProgressRing
-            {
-                IsActive = true,
-                Width = 50,
-                Height = 50,
-                Foreground = new SolidColorBrush(Colors.White)
-            };
-            
-            TextBlock loadingText = new TextBlock
-            {
-                Text = "Checking Python environment...",
-                Foreground = new SolidColorBrush(Colors.White),
-                FontSize = 16,
-                HorizontalAlignment = HorizontalAlignment.Center
-            };
-            
-            loadingPanel.Children.Add(progressRing);
-            loadingPanel.Children.Add(loadingText);
-            loadingOverlay.Children.Add(loadingPanel);
-            
-            // Add the overlay to the page's grid
-            var rootGrid = VisualTreeHelper.GetParent(CheckPythonButton) as DependencyObject;
-            while (rootGrid != null && !(rootGrid is Grid))
-            {
-                rootGrid = VisualTreeHelper.GetParent(rootGrid);
-            }
-            
-            if (rootGrid is Grid mainGrid)
-            {
-                mainGrid.Children.Add(loadingOverlay);
-                Grid.SetRowSpan(loadingOverlay, 100);
-                Grid.SetColumnSpan(loadingOverlay, 100);
-            }
-            
             try
             {
-                // Disable the button during the check
+                // Disable the button and show loading indicator
                 CheckPythonButton.IsEnabled = false;
+                PythonCheckProgressRing.IsActive = true;
+                PythonCheckProgressRing.Visibility = Visibility.Visible;
+                CheckPythonButtonText.Text = "Checking...";
                 
                 // Run the Python environment check
                 await CheckPythonEnvironment();
@@ -1521,14 +1507,11 @@ namespace WinUI_V3.Pages
             }
             finally
             {
-                // Remove the loading overlay
-                if (rootGrid is Grid grid)
-                {
-                    grid.Children.Remove(loadingOverlay);
-                }
-                
-                // Re-enable the button
+                // Reset the button state
                 CheckPythonButton.IsEnabled = true;
+                PythonCheckProgressRing.IsActive = false;
+                PythonCheckProgressRing.Visibility = Visibility.Collapsed;
+                CheckPythonButtonText.Text = "Check Setup";
             }
         }
         
@@ -1568,8 +1551,8 @@ namespace WinUI_V3.Pages
                 // Perform a simple check to see if mitmproxy is installed
                 ProcessStartInfo startInfo = new ProcessStartInfo
                 {
-                    FileName = "python",
-                    Arguments = "-c \"import mitmproxy\"",
+                    FileName = "where",
+                    Arguments = "mitmdump",
                     UseShellExecute = false,
                     RedirectStandardOutput = true,
                     RedirectStandardError = true,
@@ -1578,9 +1561,10 @@ namespace WinUI_V3.Pages
                 
                 using var process = new Process { StartInfo = startInfo };
                 process.Start();
+                string output = await process.StandardOutput.ReadToEndAsync();
                 await process.WaitForExitAsync();
                 
-                return process.ExitCode == 0;
+                return process.ExitCode == 0 && !string.IsNullOrEmpty(output);
             }
             catch
             {
