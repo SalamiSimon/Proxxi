@@ -4,6 +4,7 @@ using System;
 using System.Diagnostics;
 using System.IO;
 using System.Threading.Tasks;
+using System.Management;
 
 namespace WinUI_V3.Pages
 {
@@ -12,6 +13,7 @@ namespace WinUI_V3.Pages
         // Paths relative to the application directory
         private readonly string ModularPath;
         private readonly string RootModularPath;
+        private readonly string PythonPath;
         
         // Process for the proxy server
         private Process? _proxyProcess = null;
@@ -27,6 +29,7 @@ namespace WinUI_V3.Pages
             
             RootModularPath = toolsPath;
             ModularPath = Path.Combine(toolsPath, "mitm_modular");
+            PythonPath = Path.Combine(toolsPath, "python");
             
             this.InitializeComponent();
             this.Loaded += SettingsPage_Loaded;
@@ -82,25 +85,93 @@ namespace WinUI_V3.Pages
             }
         }
         
+        // Helper method to check if a process is our mitmdump process
+        private bool IsMitmdumpProcess(Process process)
+        {
+            try
+            {
+                if (process.MainModule?.FileName != null)
+                {
+                    string processPath = process.MainModule.FileName;
+                    // Check if this is our embedded Python running mitmdump
+                    if (processPath.Contains("python") && 
+                        (processPath.Contains(PythonPath) || processPath.Contains("Scripts\\mitmdump")))
+                    {
+                        return true;
+                    }
+                }
+                return false;
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error checking process: {ex.Message}");
+                return false;
+            }
+        }
+        
         private async Task<bool> IsProxyRunning()
         {
             try
             {
                 // Check if the proxy is running by looking for mitmdump processes
                 var processes = Process.GetProcessesByName("mitmdump");
+                var pythonProcesses = Process.GetProcessesByName("python");
                 
-                if (processes.Length > 0)
+                // Check if any of the known processes match our criteria
+                foreach (var process in processes)
                 {
-                    // Found mitmdump processes - consider the proxy running
-                    await Task.CompletedTask; // Add an await to avoid CS1998 warning
+                    try
+                    {
+                        if (IsMitmdumpProcess(process))
+                        {
+                            process.Dispose();
+                            return true;
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Debug.WriteLine($"Error checking mitmdump process: {ex.Message}");
+                    }
+                    finally
+                    {
+                        process.Dispose();
+                    }
+                }
+                
+                // Also check python processes that might be running our mitmdump
+                foreach (var process in pythonProcesses)
+                {
+                    try 
+                    {
+                        if (IsMitmdumpProcess(process))
+                        {
+                            process.Dispose();
+                            return true;
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Debug.WriteLine($"Error checking python process: {ex.Message}");
+                    }
+                    finally
+                    {
+                        process.Dispose();
+                    }
+                }
+                
+                // Check if the proxy process reference is still valid
+                if (_proxyProcess != null && !_proxyProcess.HasExited)
+                {
                     return true;
                 }
                 
+                await Task.CompletedTask; // Add an await operation to make this truly async
                 return false;
             }
             catch (Exception ex)
             {
                 Debug.WriteLine($"Error checking if proxy is running: {ex.Message}");
+                await Task.CompletedTask; // Add an await operation to make this truly async
                 return false;
             }
         }
@@ -179,11 +250,25 @@ namespace WinUI_V3.Pages
                 
                 // Full path to the mitm_core.py file
                 string mitm_core_path = Path.Combine(RootModularPath, "run_mitm.py");
+                string pythonExePath = Path.Combine(PythonPath, "python.exe");
+                string mitmdumpPath = Path.Combine(PythonPath, "Scripts", "mitmdump.exe");
                 
-                // Start the proxy process - directly using mitmdump
+                // Verify python.exe exists
+                if (!File.Exists(pythonExePath))
+                {
+                    throw new Exception($"Embedded Python not found at: {pythonExePath}");
+                }
+                
+                // Verify mitmdump.exe exists
+                if (!File.Exists(mitmdumpPath))
+                {
+                    throw new Exception($"Mitmdump not found at: {mitmdumpPath}");
+                }
+                
+                // Start the proxy process using the embedded Python's mitmdump
                 var startInfo = new ProcessStartInfo
                 {
-                    FileName = "mitmdump",
+                    FileName = mitmdumpPath,
                     Arguments = $"-s \"{mitm_core_path}\" --set block_global=false --listen-port 45871",
                     WorkingDirectory = Path.GetDirectoryName(RootModularPath),
                     UseShellExecute = _showMitmproxyLogs, // Use shell execute when showing logs
@@ -234,8 +319,7 @@ namespace WinUI_V3.Pages
                 {
                     try
                     {
-                        var processModule = process.MainModule?.FileName;
-                        if (processModule != null && processModule.Contains("mitmdump"))
+                        if (IsMitmdumpProcess(process))
                         {
                             // Kill the process
                             process.Kill();
@@ -244,6 +328,27 @@ namespace WinUI_V3.Pages
                     catch (Exception ex)
                     {
                         Debug.WriteLine($"Error killing process: {ex.Message}");
+                    }
+                    finally
+                    {
+                        process.Dispose();
+                    }
+                }
+                
+                // Find and kill Python processes running our script
+                var pythonProcesses = Process.GetProcessesByName("python");
+                foreach (var process in pythonProcesses)
+                {
+                    try 
+                    {
+                        if (IsMitmdumpProcess(process))
+                        {
+                            process.Kill();
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Debug.WriteLine($"Error killing Python process: {ex.Message}");
                     }
                     finally
                     {
@@ -323,42 +428,40 @@ namespace WinUI_V3.Pages
                 await ShowErrorDialog("Auto-Start Error", $"Failed to configure auto-start: {ex.Message}");
             }
         }
-        
+
         private async Task AddToStartup()
         {
             try
             {
                 // Create a batch file or shortcut in the Windows startup folder
                 string mitm_core_path = Path.Combine(RootModularPath, "run_mitm.py");
-                string startupCommand = $"mitmdump -s \"{mitm_core_path}\" --set block_global=false --listen-port 45871";
+                string mitmdumpPath = Path.Combine(PythonPath, "Scripts", "mitmdump.exe");
+                string startupCommand = $"\"{mitmdumpPath}\" -s \"{mitm_core_path}\" --set block_global=false --listen-port 45871";
                 string startupPath = Path.Combine(
                     Environment.GetFolderPath(Environment.SpecialFolder.Startup),
                     "MitmModular.bat");
-                
+
                 string batchContent;
-                
+
                 if (_showMitmproxyLogs)
                 {
                     // Create batch file that shows the console window
-                    batchContent = $@"@echo off
-cd /d ""{Path.GetDirectoryName(RootModularPath)}""
-start """" {startupCommand}
-exit";
+                    batchContent = $"@echo off\n"
+                        + $"cd /d \"{Path.GetDirectoryName(RootModularPath)}\"\n"
+                        + $"start \"\" {startupCommand}\n"
+                        + "exit";
                 }
                 else
                 {
-                    // Create batch file that hides the console window
-                    batchContent = $@"@echo off
-cd /d ""{Path.GetDirectoryName(RootModularPath)}""
-start /min """" {startupCommand}
-ping 127.0.0.1 -n 1 > nul
-:: The following command hides the command window
-powershell -WindowStyle Hidden -Command ""Start-Process '{startupCommand}' -WindowStyle Hidden""
-exit";
+                    // Create batch file that fully hides the console window
+                    batchContent = $"@echo off\n"
+                        + $"cd /d \"{Path.GetDirectoryName(RootModularPath)}\"\n"
+                        + $"powershell -Command \"Start-Process '{mitmdumpPath}' -ArgumentList '-s \\\"{mitm_core_path}\\\" --set block_global=false --listen-port 45871' -WindowStyle Hidden -NoNewWindow -PassThru\"\n"
+                        + "exit";
                 }
-                
+
                 await File.WriteAllTextAsync(startupPath, batchContent);
-                
+
                 await ShowInfoDialog("Auto-Start Configured", "MITM Modular has been added to startup items.");
             }
             catch (Exception ex)
@@ -367,7 +470,8 @@ exit";
                 throw new Exception($"Failed to add to startup: {ex.Message}", ex);
             }
         }
-        
+
+
         private async Task RemoveFromStartup()
         {
             try
@@ -429,10 +533,12 @@ exit";
                     return;
                 }
                 
-                // Run the CLI command to delete all targets
+                string pythonExePath = Path.Combine(PythonPath, "python.exe");
+                
+                // Run the CLI command to delete all targets using our embedded Python
                 var startInfo = new ProcessStartInfo
                 {
-                    FileName = "python",
+                    FileName = pythonExePath,
                     Arguments = $"-m mitm_modular.cli delete-all",
                     WorkingDirectory = Path.GetDirectoryName(ModularPath),
                     UseShellExecute = false,

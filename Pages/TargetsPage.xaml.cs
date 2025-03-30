@@ -16,6 +16,7 @@ using Microsoft.UI;
 using Windows.UI;
 using System.Text.Json.Serialization.Metadata;
 using System.Text.RegularExpressions;
+using System.Management;
 
 namespace WinUI_V3.Pages
 {
@@ -157,25 +158,90 @@ namespace WinUI_V3.Pages
             }
         }
         
+        // Helper method to check if a process is our mitmdump process
+        private static bool IsMitmdumpProcess(Process process)
+        {
+            try
+            {
+                if (process.MainModule?.FileName != null)
+                {
+                    string processPath = process.MainModule.FileName;
+                    string appDirectory = GetAppFolder();
+                    string toolsPath = Path.Combine(appDirectory, "tools");
+                    
+                    // Check if this is our embedded Python running mitmdump
+                    if (processPath.Contains("python") && 
+                        (processPath.Contains(toolsPath) || processPath.Contains("Scripts\\mitmdump")))
+                    {
+                        return true;
+                    }
+                }
+                return false;
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error checking process: {ex.Message}");
+                return false;
+            }
+        }
+        
         private static async Task<bool> IsProxyRunning()
         {
             try
             {
                 // Check if the proxy is running by looking for mitmdump processes
                 var processes = Process.GetProcessesByName("mitmdump");
+                var pythonProcesses = Process.GetProcessesByName("python");
                 
-                if (processes.Length > 0)
+                // Check if any of the known processes match our criteria
+                foreach (var process in processes)
                 {
-                    // Found mitmdump processes - consider the proxy running
-                    await Task.CompletedTask;
-                    return true;
+                    try
+                    {
+                        if (IsMitmdumpProcess(process))
+                        {
+                            process.Dispose();
+                            return true;
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Debug.WriteLine($"Error checking mitmdump process: {ex.Message}");
+                    }
+                    finally
+                    {
+                        process.Dispose();
+                    }
                 }
                 
+                // Also check python processes that might be running our mitmdump
+                foreach (var process in pythonProcesses)
+                {
+                    try 
+                    {
+                        if (IsMitmdumpProcess(process))
+                        {
+                            process.Dispose();
+                            return true;
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Debug.WriteLine($"Error checking python process: {ex.Message}");
+                    }
+                    finally
+                    {
+                        process.Dispose();
+                    }
+                }
+                
+                await Task.CompletedTask; // Add an await operation to make this truly async
                 return false;
             }
             catch (Exception ex)
             {
                 Debug.WriteLine($"Error checking if proxy is running: {ex.Message}");
+                await Task.CompletedTask; // Add an await operation to make this truly async
                 return false;
             }
         }
@@ -424,9 +490,23 @@ namespace WinUI_V3.Pages
             try
             {
                 Debug.WriteLine($"Checking for Python module availability: {moduleName}");
+                
+                // Get the python executable path - use a static method to avoid instance requirement
+                string pythonPath = "python";
+                try {
+                    string appDirectory = GetAppFolder();
+                    string toolsDirectory = Path.Combine(appDirectory, "tools");
+                    string embeddedPythonPath = Path.Combine(toolsDirectory, "python", "python.exe");
+                    if (File.Exists(embeddedPythonPath)) {
+                        pythonPath = embeddedPythonPath;
+                    }
+                } catch {
+                    // Fallback to system Python on any error
+                }
+                
                 var startInfo = new ProcessStartInfo
                 {
-                    FileName = "python",
+                    FileName = pythonPath,
                     Arguments = $"-c \"import {moduleName}; print('Module found')\"",
                     UseShellExecute = false,
                     RedirectStandardOutput = true,
@@ -2117,16 +2197,18 @@ namespace WinUI_V3.Pages
                 // First, check if the embedded Python exists
                 string appDirectory = GetAppFolder();
                 string toolsDirectory = Path.Combine(appDirectory, "tools");
-                string embeddedPythonPath = Path.Combine(toolsDirectory, "python", "Scripts", "python.exe");
+                string embeddedPythonPath = Path.Combine(toolsDirectory, "python", "python.exe");
+                string embeddedPythonScriptsPath = Path.Combine(toolsDirectory, "python", "Scripts", "python.exe");
                 
                 // Try multiple locations for the embedded Python
                 string[] possiblePaths =
                 [
                     embeddedPythonPath,
-                    Path.Combine(Directory.GetCurrentDirectory(), "tools", "python", "Scripts", "python.exe"),
-                    Path.Combine(Path.GetDirectoryName(ModularPath) ?? string.Empty, "python", "Scripts", "python.exe"),
-                    Path.Combine(toolsDirectory, "python", "Scripts", "python.exe"),
-                    "python" // Fallback to system Python
+                    embeddedPythonScriptsPath,
+                    Path.Combine(toolsDirectory, "python", "python.exe"),
+                    Path.Combine(Directory.GetCurrentDirectory(), "tools", "python", "python.exe"),
+                    Path.Combine(Path.GetDirectoryName(ModularPath) ?? string.Empty, "python", "python.exe"),
+                    "python" // Fallback to system Python only as last resort
                 ];
                 
                 foreach (string path in possiblePaths)
