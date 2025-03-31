@@ -615,17 +615,36 @@ namespace WinUI_V3.Pages
                 {
                     try
                     {
-                        if (!_proxyProcess.HasExited)
+                        // Check if process was successfully created and started
+                        // HasExited property will throw an exception if process hasn't started
+                        try
                         {
-                            _proxyProcess.Kill();
+                            if (!_proxyProcess.HasExited)
+                            {
+                                _proxyProcess.Kill();
+                            }
                         }
+                        catch
+                        {
+                            // Process was never successfully started
+                            Debug.WriteLine("Process was never successfully started");
+                        }
+                    }
+                    catch (Exception killEx)
+                    {
+                        Debug.WriteLine($"Error killing proxy process: {killEx.Message}");
+                    }
+                    
+                    try
+                    {
                         _proxyProcess.Dispose();
-                        _proxyProcess = null;
                     }
                     catch (Exception disposeEx)
                     {
                         Debug.WriteLine($"Error disposing proxy process: {disposeEx.Message}");
                     }
+                    
+                    _proxyProcess = null;
                 }
                 
                 throw new Exception($"Failed to start proxy: {ex.Message}", ex);
@@ -685,7 +704,7 @@ namespace WinUI_V3.Pages
                 }
                 
                 // Start mitmproxy with our script
-                Debug.WriteLine("Starting proxy using mitmdump directly...");
+                Debug.WriteLine("Starting proxy directly...");
                 
                 var startInfo = new ProcessStartInfo
                 {
@@ -699,13 +718,18 @@ namespace WinUI_V3.Pages
                     WindowStyle = _showMitmproxyLogs ? ProcessWindowStyle.Normal : ProcessWindowStyle.Hidden
                 };
                 
-                // Add some helpful environment variables
-                startInfo.EnvironmentVariables["PYTHONUTF8"] = "1";                   // Force UTF-8 mode
-                startInfo.EnvironmentVariables["PYTHONIOENCODING"] = "utf-8";         // Use UTF-8 for stdin/stdout
-                startInfo.EnvironmentVariables["PYTHONUNBUFFERED"] = "1";             // Disable output buffering
-                startInfo.EnvironmentVariables["PYTHONLEGACYWINDOWSSTDIO"] = "1";     // Use legacy stdio on Windows
+                // Add environment variables only if we're not using the shell (UseShellExecute=false)
+                // Otherwise it will cause an exception
+                if (!_showMitmproxyLogs)
+                {
+                    // Add some helpful environment variables
+                    startInfo.EnvironmentVariables["PYTHONUTF8"] = "1";                   // Force UTF-8 mode
+                    startInfo.EnvironmentVariables["PYTHONIOENCODING"] = "utf-8";         // Use UTF-8 for stdin/stdout
+                    startInfo.EnvironmentVariables["PYTHONUNBUFFERED"] = "1";             // Disable output buffering
+                    startInfo.EnvironmentVariables["PYTHONLEGACYWINDOWSSTDIO"] = "1";     // Use legacy stdio on Windows
+                }
                 
-                Debug.WriteLine($"Starting proxy with system Python: {startInfo.FileName} {startInfo.Arguments}");
+                Debug.WriteLine($"Starting proxy directly: {startInfo.FileName} {startInfo.Arguments}");
                 Debug.WriteLine($"Working directory: {startInfo.WorkingDirectory}");
                 
                 _proxyProcess = new Process { StartInfo = startInfo };
@@ -773,17 +797,36 @@ namespace WinUI_V3.Pages
                 {
                     try
                     {
-                        if (!_proxyProcess.HasExited)
+                        // Check if process was successfully created and started
+                        // HasExited property will throw an exception if process hasn't started
+                        try
                         {
-                            _proxyProcess.Kill();
+                            if (!_proxyProcess.HasExited)
+                            {
+                                _proxyProcess.Kill();
+                            }
                         }
+                        catch
+                        {
+                            // Process was never successfully started
+                            Debug.WriteLine("Process was never successfully started");
+                        }
+                    }
+                    catch (Exception killEx)
+                    {
+                        Debug.WriteLine($"Error killing proxy process: {killEx.Message}");
+                    }
+                    
+                    try
+                    {
                         _proxyProcess.Dispose();
-                        _proxyProcess = null;
                     }
                     catch (Exception disposeEx)
                     {
                         Debug.WriteLine($"Error disposing proxy process: {disposeEx.Message}");
                     }
+                    
+                    _proxyProcess = null;
                 }
                 
                 return false;
@@ -829,18 +872,35 @@ namespace WinUI_V3.Pages
                 {
                     try
                     {
-                        if (!_proxyProcess.HasExited)
+                        // Check if process was successfully created and started
+                        // HasExited property will throw an exception if process hasn't started
+                        try
                         {
-                            _proxyProcess.Kill();
+                            if (!_proxyProcess.HasExited)
+                            {
+                                _proxyProcess.Kill();
+                            }
+                        }
+                        catch
+                        {
+                            // Process was never successfully started
+                            Debug.WriteLine("Process was never successfully started");
                         }
                     }
-                    catch (Exception ex)
+                    catch (Exception killEx)
                     {
-                        Debug.WriteLine($"Error killing proxy process: {ex.Message}");
+                        Debug.WriteLine($"Error killing proxy process: {killEx.Message}");
                     }
                     finally
                     {
-                        _proxyProcess.Dispose();
+                        try
+                        {
+                            _proxyProcess.Dispose();
+                        }
+                        catch (Exception disposeEx)
+                        {
+                            Debug.WriteLine($"Error disposing proxy process: {disposeEx.Message}");
+                        }
                         _proxyProcess = null;
                     }
                 }
