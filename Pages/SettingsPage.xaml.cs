@@ -546,20 +546,7 @@ namespace WinUI_V3.Pages
             {
                 _showMitmproxyLogs = ShowLogsToggle.IsOn;
                 
-                // If the proxy is currently running, restart it to apply the new setting
-                if (ProxyToggle.IsOn)
-                {
-                    // Briefly disable the toggle to prevent interference
-                    ProxyToggle.Toggled -= ProxyToggle_Toggled;
-                    
-                    // Stop and restart the proxy with the new setting
-                    await StopProxy();
-                    await StartProxy();
-                    
-                    // Re-enable the toggle
-                    ProxyToggle.Toggled += ProxyToggle_Toggled;
-                }
-                
+                // Just update the setting without restarting the proxy
                 // Save the setting (would be implemented in a full settings system)
             }
             catch (Exception ex)
