@@ -29,7 +29,7 @@ namespace WinUI_V3.Pages
             
             RootModularPath = toolsPath;
             ModularPath = Path.Combine(toolsPath, "mitm_modular");
-            PythonPath = Path.Combine(toolsPath, "python");
+            PythonPath = Path.Combine(toolsPath, "python", "Scripts");
             
             this.InitializeComponent();
             this.Loaded += SettingsPage_Loaded;
@@ -250,11 +250,42 @@ namespace WinUI_V3.Pages
                 
                 // Full path to the mitm_core.py file
                 string mitm_core_path = Path.Combine(RootModularPath, "run_mitm.py");
-                string pythonExePath = Path.Combine(PythonPath, "python.exe");
-                string mitmdumpPath = Path.Combine(PythonPath, "Scripts", "mitmdump.exe");
+                string pythonExePath = GetPythonExecutablePath();
+                
+                // Fix the mitmdump path - should be directly in the Scripts folder, not Scripts/Scripts
+                string mitmdumpPath = Path.Combine(Path.GetDirectoryName(RootModularPath) ?? string.Empty, "tools", "python", "Scripts", "mitmdump.exe");
+                
+                // Verify paths and log them for debugging
+                Debug.WriteLine($"Using mitm_core_path: {mitm_core_path}");
+                Debug.WriteLine($"Using pythonExePath: {pythonExePath}");
+                Debug.WriteLine($"Using mitmdumpPath: {mitmdumpPath}");
+                
+                // If mitmdump.exe is not found at the expected path, try to find it
+                if (!File.Exists(mitmdumpPath))
+                {
+                    Debug.WriteLine($"Mitmdump not found at primary path: {mitmdumpPath}");
+                    
+                    // Try alternative locations
+                    string[] possibleMitmdumpPaths = [
+                        Path.Combine(Path.Combine(GetAppFolder(), "tools"), "python", "Scripts", "mitmdump.exe"),
+                        Path.Combine(Path.Combine(GetAppFolder(), "tools", "python"), "mitmdump.exe"),
+                        Path.Combine(PythonPath, "mitmdump.exe")
+                    ];
+                    
+                    foreach (var path in possibleMitmdumpPaths)
+                    {
+                        Debug.WriteLine($"Checking alternative mitmdump path: {path}");
+                        if (File.Exists(path))
+                        {
+                            mitmdumpPath = path;
+                            Debug.WriteLine($"Found mitmdump at: {mitmdumpPath}");
+                            break;
+                        }
+                    }
+                }
                 
                 // Verify python.exe exists
-                if (!File.Exists(pythonExePath))
+                if (!File.Exists(pythonExePath) && pythonExePath != "python")
                 {
                     throw new Exception($"Embedded Python not found at: {pythonExePath}");
                 }
@@ -435,7 +466,36 @@ namespace WinUI_V3.Pages
             {
                 // Create a batch file or shortcut in the Windows startup folder
                 string mitm_core_path = Path.Combine(RootModularPath, "run_mitm.py");
-                string mitmdumpPath = Path.Combine(PythonPath, "Scripts", "mitmdump.exe");
+                string pythonExePath = GetPythonExecutablePath();
+                
+                // Use the same mitmdump path resolution logic as in StartProxy
+                string mitmdumpPath = Path.Combine(Path.GetDirectoryName(RootModularPath) ?? string.Empty, "tools", "python", "Scripts", "mitmdump.exe");
+                
+                // If mitmdump.exe is not found at the expected path, try to find it
+                if (!File.Exists(mitmdumpPath))
+                {
+                    // Try alternative locations
+                    string[] possibleMitmdumpPaths = [
+                        Path.Combine(Path.Combine(GetAppFolder(), "tools"), "python", "Scripts", "mitmdump.exe"),
+                        Path.Combine(Path.Combine(GetAppFolder(), "tools", "python"), "mitmdump.exe"),
+                        Path.Combine(PythonPath, "mitmdump.exe")
+                    ];
+                    
+                    foreach (var path in possibleMitmdumpPaths)
+                    {
+                        if (File.Exists(path))
+                        {
+                            mitmdumpPath = path;
+                            break;
+                        }
+                    }
+                }
+                
+                if (!File.Exists(mitmdumpPath))
+                {
+                    throw new Exception($"Mitmdump not found at: {mitmdumpPath}");
+                }
+                
                 string startupCommand = $"\"{mitmdumpPath}\" -s \"{mitm_core_path}\" --set block_global=false --listen-port 45871";
                 string startupPath = Path.Combine(
                     Environment.GetFolderPath(Environment.SpecialFolder.Startup),
@@ -533,7 +593,7 @@ namespace WinUI_V3.Pages
                     return;
                 }
                 
-                string pythonExePath = Path.Combine(PythonPath, "python.exe");
+                string pythonExePath = GetPythonExecutablePath();
                 
                 // Run the CLI command to delete all targets using our embedded Python
                 var startInfo = new ProcessStartInfo
@@ -702,6 +762,49 @@ namespace WinUI_V3.Pages
             catch (Exception ex)
             {
                 Debug.WriteLine($"Failed to show info dialog: {ex.Message}");
+            }
+        }
+        
+        // Update the python executable path to use the embedded version
+        private string GetPythonExecutablePath()
+        {
+            try
+            {
+                // First, check if the embedded Python exists
+                string appDirectory = GetAppFolder();
+                string toolsDirectory = Path.Combine(appDirectory, "tools");
+                string embeddedPythonPath = Path.Combine(toolsDirectory, "python", "python.exe");
+                string embeddedPythonScriptsPath = Path.Combine(toolsDirectory, "python", "Scripts", "python.exe");
+                
+                // Try multiple locations for the embedded Python
+                string[] possiblePaths =
+                [
+                    embeddedPythonPath,
+                    embeddedPythonScriptsPath,
+                    Path.Combine(toolsDirectory, "python", "python.exe"),
+                    Path.Combine(Directory.GetCurrentDirectory(), "tools", "python", "python.exe"),
+                    Path.Combine(Path.GetDirectoryName(ModularPath) ?? string.Empty, "python", "python.exe"),
+                    "python" // Fallback to system Python only as last resort
+                ];
+                
+                foreach (string path in possiblePaths)
+                {
+                    Debug.WriteLine($"Checking for Python at: {path}");
+                    if (File.Exists(path))
+                    {
+                        Debug.WriteLine($"Found Python at: {path}");
+                        return path;
+                    }
+                }
+                
+                // If not found, return the default "python" command which uses the system Python
+                Debug.WriteLine("No embedded Python found, falling back to system Python");
+                return "python";
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error getting Python path: {ex.Message}");
+                return "python"; // Fallback to system Python
             }
         }
     }

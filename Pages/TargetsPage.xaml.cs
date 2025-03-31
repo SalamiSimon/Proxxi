@@ -8,15 +8,9 @@ using System.IO;
 using System.Linq;
 using System.Text.Json;
 using System.Threading.Tasks;
-using System.Net.Http;
-using System.Net;
-using WinUI_V3.Helpers;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI;
-using Windows.UI;
-using System.Text.Json.Serialization.Metadata;
 using System.Text.RegularExpressions;
-using System.Management;
 
 namespace WinUI_V3.Pages
 {
