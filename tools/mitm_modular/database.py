@@ -1,93 +1,91 @@
 import sqlite3
 import os
 import json
+import time
+import sys
 from typing import Dict, Any, List, Optional, Union
 
 class TargetDatabase:
     def __init__(self, db_path="targets.db"):
         """Initialize the database connection"""
+        print(f"[DEBUG] Initializing database with path: {db_path}")
+        
+        # Check if the path is absolute or relative
+        if not os.path.isabs(db_path):
+            # Get the directory of this script
+            script_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            db_path = os.path.join(script_dir, db_path)
+            print(f"[DEBUG] Using absolute database path: {db_path}")
+            
+        # Check if the database exists
+        if not os.path.exists(db_path):
+            print(f"[DEBUG] Database file does not exist at: {db_path}")
+            # Try to create the database file
+            try:
+                self._create_db_if_not_exists(db_path)
+                print(f"[DEBUG] Created new database at: {db_path}")
+            except Exception as e:
+                print(f"[DEBUG] Error creating database: {e}")
+        else:
+            print(f"[DEBUG] Database file exists at: {db_path}")
+            
         self.db_path = db_path
         self.conn = None
         self.cursor = None
-        self.initialize()
         
-    def initialize(self):
-        """Create database and tables if they don't exist"""
-        need_to_create = not os.path.exists(self.db_path)
+        # Connect to the database
+        try:
+            self._connect()
+            print(f"[DEBUG] Successfully connected to database")
+        except Exception as e:
+            print(f"[DEBUG] Error connecting to database: {e}")
+            
+    def _create_db_if_not_exists(self, db_path):
+        """Create the database file if it doesn't exist"""
+        # Ensure the parent directory exists
+        os.makedirs(os.path.dirname(os.path.abspath(db_path)), exist_ok=True)
         
-        self.conn = sqlite3.connect(self.db_path)
-        self.cursor = self.conn.cursor()
+        # Create the database file and tables
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
         
-        if need_to_create:
-            self.cursor.execute('''
-                CREATE TABLE targets (
-                    id INTEGER PRIMARY KEY,
-                    url TEXT NOT NULL,
-                    status_code INTEGER,
-                    target_status_code INTEGER,
-                    modification_type TEXT CHECK(modification_type IN ('dynamic', 'static', 'none')),
-                    dynamic_code TEXT,
-                    static_response TEXT,
-                    is_enabled INTEGER DEFAULT 1,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )
-            ''')
-            self.conn.commit()
-        else:
-            # Check if we need to update the schema for existing databases
-            try:
-                # Try to insert a 'none' modification type to see if it's allowed
-                self.cursor.execute(
-                    "INSERT INTO targets (url, modification_type) VALUES ('test', 'none')"
-                )
-                # If successful, delete the test row
-                self.cursor.execute("DELETE FROM targets WHERE url = 'test' AND modification_type = 'none'")
-                self.conn.commit()
-            except sqlite3.IntegrityError:
-                # If the check constraint fails, we need to alter the table
-                # SQLite doesn't support modifying constraints directly, so we need a workaround
-                print("Updating database schema to support 'none' modification type...")
-                
-                # Create a backup of the data
-                self.cursor.execute("SELECT * FROM targets")
-                targets_data = self.cursor.fetchall()
-                
-                # Get the column names
-                self.cursor.execute("PRAGMA table_info(targets)")
-                columns = [column[1] for column in self.cursor.fetchall()]
-                
-                # Rename the old table
-                self.cursor.execute("ALTER TABLE targets RENAME TO targets_old")
-                
-                # Create the new table with updated CHECK constraint
-                self.cursor.execute('''
-                    CREATE TABLE targets (
-                        id INTEGER PRIMARY KEY,
-                        url TEXT NOT NULL,
-                        status_code INTEGER,
-                        target_status_code INTEGER,
-                        modification_type TEXT CHECK(modification_type IN ('dynamic', 'static', 'none')),
-                        dynamic_code TEXT,
-                        static_response TEXT,
-                        is_enabled INTEGER DEFAULT 1,
-                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                    )
-                ''')
-                
-                # Copy the data from old table to new table
-                placeholders = ','.join(['?'] * len(columns))
-                columns_str = ','.join(columns)
-                self.cursor.executemany(
-                    f"INSERT INTO targets ({columns_str}) VALUES ({placeholders})",
-                    targets_data
-                )
-                
-                # Drop the old table
-                self.cursor.execute("DROP TABLE targets_old")
-                
-                self.conn.commit()
-                print("Database schema updated successfully.")
-    
+        # Create targets table
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS targets (
+                id INTEGER PRIMARY KEY,
+                url TEXT NOT NULL,
+                status_code INTEGER,
+                target_status_code INTEGER,
+                modification_type TEXT NOT NULL,
+                dynamic_code TEXT,
+                static_response TEXT,
+                is_enabled INTEGER DEFAULT 1,
+                created_at TEXT
+            )
+        ''')
+        
+        conn.commit()
+        conn.close()
+
+    def _connect(self):
+        """Connect to the SQLite database"""
+        try:
+            print(f"[DEBUG] Connecting to database at: {self.db_path}")
+            self.conn = sqlite3.connect(self.db_path)
+            self.conn.row_factory = sqlite3.Row  # This enables column access by name
+            self.cursor = self.conn.cursor()
+            return True
+        except sqlite3.Error as e:
+            print(f"[DEBUG] Database connection error: {e}")
+            return False
+
+    def _disconnect(self):
+        """Close the database connection"""
+        if self.conn:
+            self.conn.close()
+            self.conn = None
+            self.cursor = None
+
     def add_target(self, url: str, status_code: int = None, 
                    target_status_code: int = None,
                    modification_type: str = 'dynamic',
@@ -114,9 +112,34 @@ class TargetDatabase:
         
     def get_all_targets(self) -> List[Dict[str, Any]]:
         """Get all enabled targets from the database"""
-        self.cursor.execute('SELECT * FROM targets WHERE is_enabled = 1')
-        columns = [col[0] for col in self.cursor.description]
-        return [dict(zip(columns, row)) for row in self.cursor.fetchall()]
+        try:
+            print(f"[DEBUG] Getting all enabled targets from database")
+            if not self.cursor:
+                if not self._connect():
+                    print(f"[DEBUG] Failed to connect to database for get_all_targets")
+                    return []
+            
+            self.cursor.execute("SELECT * FROM targets WHERE is_enabled = 1")
+            rows = self.cursor.fetchall()
+            print(f"[DEBUG] Found {len(rows)} enabled targets in database")
+            
+            # Convert rows to dictionaries
+            targets = [dict(row) for row in rows]
+            
+            # Count targets by type
+            types = {}
+            for target in targets:
+                t = target.get('modification_type', 'unknown')
+                types[t] = types.get(t, 0) + 1
+            
+            print(f"[DEBUG] Target types: {types}")
+            return targets
+            
+        except sqlite3.Error as e:
+            print(f"[DEBUG] Error getting targets: {e}")
+            return []
+        finally:
+            self._disconnect()
         
     def get_all_targets_including_disabled(self) -> List[Dict[str, Any]]:
         """Get all targets from the database, including disabled ones"""

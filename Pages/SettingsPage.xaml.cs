@@ -5,6 +5,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Threading.Tasks;
 using System.Management;
+using WinUI_V3.Helpers;
 
 namespace WinUI_V3.Pages
 {
@@ -72,12 +73,58 @@ namespace WinUI_V3.Pages
             {
                 // Initialize proxy toggle state based on whether proxy is running
                 ProxyToggle.Toggled -= ProxyToggle_Toggled; // Prevent event firing during init
-                ProxyToggle.IsOn = await IsProxyRunning();
+                ProxyToggle.IsOn = await ProxyService.IsProxyRunning();
                 ProxyToggle.Toggled += ProxyToggle_Toggled;
                 
                 // Load the ShowLogs setting value (could be from settings storage in the future)
                 _showMitmproxyLogs = false; // default to false
                 ShowLogsToggle.IsOn = _showMitmproxyLogs;
+                
+                // Check if we need to verify dependencies (first launch or missing dependencies)
+                bool shouldCheckDependencies = await AppService.ShouldCheckDependencies();
+                if (shouldCheckDependencies)
+                {
+                    // Dependencies might be missing, show installation dialog
+                    bool installDependencies = await DialogService.ShowConfirmationDialog(
+                        this.XamlRoot,
+                        "Dependencies Required",
+                        "Python and/or mitmproxy are not installed. Would you like to install them now?",
+                        "Install",
+                        "Cancel"
+                    );
+                    
+                    if (installDependencies)
+                    {
+                        // Show progress indicator
+                        ProgressRing.IsActive = true;
+                        ProgressContainer.Visibility = Visibility.Visible;
+                        StatusText.Text = "Installing dependencies...";
+                        
+                        // Install dependencies
+                        bool installSuccess = await DependencyService.InstallDependencies();
+                        
+                        // Hide progress indicator
+                        ProgressRing.IsActive = false;
+                        ProgressContainer.Visibility = Visibility.Collapsed;
+                        
+                        if (installSuccess)
+                        {
+                            await DialogService.ShowInfoDialog(
+                                this.XamlRoot,
+                                "Installation Complete",
+                                "Required dependencies have been installed successfully."
+                            );
+                        }
+                        else
+                        {
+                            await DialogService.ShowErrorDialog(
+                                this.XamlRoot,
+                                "Installation Failed",
+                                "Failed to install dependencies. Please try again or install Python and mitmproxy manually."
+                            );
+                        }
+                    }
+                }
             }
             catch (Exception ex)
             {
@@ -194,7 +241,11 @@ namespace WinUI_V3.Pages
             catch (Exception ex)
             {
                 Debug.WriteLine($"Error toggling proxy: {ex.Message}");
-                await ShowErrorDialog("Proxy Error", $"Failed to {(ProxyToggle.IsOn ? "start" : "stop")} the proxy: {ex.Message}");
+                await DialogService.ShowErrorDialog(
+                    this.XamlRoot,
+                    "Proxy Error", 
+                    $"Failed to {(ProxyToggle.IsOn ? "start" : "stop")} the proxy: {ex.Message}"
+                );
                 
                 // Reset the toggle without triggering the event
                 ProxyToggle.Toggled -= ProxyToggle_Toggled;
@@ -228,7 +279,11 @@ namespace WinUI_V3.Pages
             catch (Exception ex)
             {
                 Debug.WriteLine($"Error toggling log visibility: {ex.Message}");
-                await ShowErrorDialog("Settings Error", $"Failed to change log visibility: {ex.Message}");
+                await DialogService.ShowErrorDialog(
+                    this.XamlRoot,
+                    "Settings Error", 
+                    $"Failed to change log visibility: {ex.Message}"
+                );
                 
                 // Reset the toggle without triggering the event
                 ShowLogsToggle.Toggled -= ShowLogsToggle_Toggled;
@@ -242,89 +297,8 @@ namespace WinUI_V3.Pages
         {
             try
             {
-                // Check if proxy is already running
-                if (await IsProxyRunning())
-                {
-                    return;
-                }
-                
-                // Full path to the mitm_core.py file
-                string mitm_core_path = Path.Combine(RootModularPath, "run_mitm.py");
-                string pythonExePath = GetPythonExecutablePath();
-                
-                // Fix the mitmdump path - should be directly in the Scripts folder, not Scripts/Scripts
-                string mitmdumpPath = Path.Combine(Path.GetDirectoryName(RootModularPath) ?? string.Empty, "tools", "python", "Scripts", "mitmdump.exe");
-                
-                // Verify paths and log them for debugging
-                Debug.WriteLine($"Using mitm_core_path: {mitm_core_path}");
-                Debug.WriteLine($"Using pythonExePath: {pythonExePath}");
-                Debug.WriteLine($"Using mitmdumpPath: {mitmdumpPath}");
-                
-                // If mitmdump.exe is not found at the expected path, try to find it
-                if (!File.Exists(mitmdumpPath))
-                {
-                    Debug.WriteLine($"Mitmdump not found at primary path: {mitmdumpPath}");
-                    
-                    // Try alternative locations
-                    string[] possibleMitmdumpPaths = [
-                        Path.Combine(Path.Combine(GetAppFolder(), "tools"), "python", "Scripts", "mitmdump.exe"),
-                        Path.Combine(Path.Combine(GetAppFolder(), "tools", "python"), "mitmdump.exe"),
-                        Path.Combine(PythonPath, "mitmdump.exe")
-                    ];
-                    
-                    foreach (var path in possibleMitmdumpPaths)
-                    {
-                        Debug.WriteLine($"Checking alternative mitmdump path: {path}");
-                        if (File.Exists(path))
-                        {
-                            mitmdumpPath = path;
-                            Debug.WriteLine($"Found mitmdump at: {mitmdumpPath}");
-                            break;
-                        }
-                    }
-                }
-                
-                // Verify python.exe exists
-                if (!File.Exists(pythonExePath) && pythonExePath != "python")
-                {
-                    throw new Exception($"Embedded Python not found at: {pythonExePath}");
-                }
-                
-                // Verify mitmdump.exe exists
-                if (!File.Exists(mitmdumpPath))
-                {
-                    throw new Exception($"Mitmdump not found at: {mitmdumpPath}");
-                }
-                
-                // Start the proxy process using the embedded Python's mitmdump
-                var startInfo = new ProcessStartInfo
-                {
-                    FileName = mitmdumpPath,
-                    Arguments = $"-s \"{mitm_core_path}\" --set block_global=false --listen-port 45871",
-                    WorkingDirectory = Path.GetDirectoryName(RootModularPath),
-                    UseShellExecute = _showMitmproxyLogs, // Use shell execute when showing logs
-                    RedirectStandardOutput = !_showMitmproxyLogs,
-                    RedirectStandardError = !_showMitmproxyLogs,
-                    CreateNoWindow = !_showMitmproxyLogs  // Show window based on toggle setting
-                };
-                
-                _proxyProcess = new Process { StartInfo = startInfo };
-                _proxyProcess.Start();
-                
-                // Wait longer to make sure it starts correctly - increase from 2s to 5s
-                await Task.Delay(5000);
-                
-                // Try multiple times to check if it's running
-                for (int i = 0; i < 3; i++) 
-                {
-                    if (await IsProxyRunning())
-                    {
-                        return; // Success
-                    }
-                    await Task.Delay(1000); // Wait an additional second between retries
-                }
-                
-                throw new Exception("Proxy failed to start after multiple attempts");
+                // Use the ProxyService to start the proxy
+                await ProxyService.StartProxy(_showMitmproxyLogs);
             }
             catch (Exception ex)
             {
@@ -337,85 +311,8 @@ namespace WinUI_V3.Pages
         {
             try
             {
-                // Check if proxy is already stopped
-                if (!await IsProxyRunning())
-                {
-                    return;
-                }
-                
-                // Find and kill all mitmdump processes
-                var mitmdumpProcesses = Process.GetProcessesByName("mitmdump");
-                
-                foreach (var process in mitmdumpProcesses)
-                {
-                    try
-                    {
-                        if (IsMitmdumpProcess(process))
-                        {
-                            // Kill the process
-                            process.Kill();
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        Debug.WriteLine($"Error killing process: {ex.Message}");
-                    }
-                    finally
-                    {
-                        process.Dispose();
-                    }
-                }
-                
-                // Find and kill Python processes running our script
-                var pythonProcesses = Process.GetProcessesByName("python");
-                foreach (var process in pythonProcesses)
-                {
-                    try 
-                    {
-                        if (IsMitmdumpProcess(process))
-                        {
-                            process.Kill();
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        Debug.WriteLine($"Error killing Python process: {ex.Message}");
-                    }
-                    finally
-                    {
-                        process.Dispose();
-                    }
-                }
-                
-                // Cleanup the process reference
-                if (_proxyProcess != null)
-                {
-                    try
-                    {
-                        if (!_proxyProcess.HasExited)
-                        {
-                            _proxyProcess.Kill();
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        Debug.WriteLine($"Error killing proxy process: {ex.Message}");
-                    }
-                    finally
-                    {
-                        _proxyProcess.Dispose();
-                        _proxyProcess = null;
-                    }
-                }
-                
-                // Wait a bit to make sure it stops correctly
-                await Task.Delay(1000);
-                
-                // Check if it's still running
-                if (await IsProxyRunning())
-                {
-                    throw new Exception("Proxy failed to stop. Some processes may need to be terminated manually.");
-                }
+                // Use the ProxyService to stop the proxy
+                await ProxyService.StopProxy();
             }
             catch (Exception ex)
             {
@@ -428,19 +325,14 @@ namespace WinUI_V3.Pages
         {
             try
             {
-                // Create a dialog to configure auto-start
-                ContentDialog dialog = new ContentDialog
-                {
-                    Title = "Configure Auto-Start",
-                    Content = "Do you want to add the MITM core to startup items?",
-                    PrimaryButtonText = "Add to Startup",
-                    SecondaryButtonText = "Remove from Startup",
-                    CloseButtonText = "Cancel",
-                    DefaultButton = ContentDialogButton.Primary,
-                    XamlRoot = this.XamlRoot
-                };
-                
-                var result = await dialog.ShowAsync();
+                var result = await DialogService.ShowDialog(
+                    this.XamlRoot,
+                    "Configure Auto-Start",
+                    "Do you want to add the MITM core to startup items?",
+                    "Add to Startup",
+                    "Remove from Startup",
+                    "Cancel"
+                );
                 
                 if (result == ContentDialogResult.Primary)
                 {
@@ -456,7 +348,11 @@ namespace WinUI_V3.Pages
             catch (Exception ex)
             {
                 Debug.WriteLine($"Error configuring auto-start: {ex.Message}");
-                await ShowErrorDialog("Auto-Start Error", $"Failed to configure auto-start: {ex.Message}");
+                await DialogService.ShowErrorDialog(
+                    this.XamlRoot,
+                    "Auto-Start Error", 
+                    $"Failed to configure auto-start: {ex.Message}"
+                );
             }
         }
 
@@ -464,65 +360,15 @@ namespace WinUI_V3.Pages
         {
             try
             {
-                // Create a batch file or shortcut in the Windows startup folder
-                string mitm_core_path = Path.Combine(RootModularPath, "run_mitm.py");
-                string pythonExePath = GetPythonExecutablePath();
-                
-                // Use the same mitmdump path resolution logic as in StartProxy
-                string mitmdumpPath = Path.Combine(Path.GetDirectoryName(RootModularPath) ?? string.Empty, "tools", "python", "Scripts", "mitmdump.exe");
-                
-                // If mitmdump.exe is not found at the expected path, try to find it
-                if (!File.Exists(mitmdumpPath))
+                bool success = await ProxyService.AddToStartup(_showMitmproxyLogs);
+                if (success)
                 {
-                    // Try alternative locations
-                    string[] possibleMitmdumpPaths = [
-                        Path.Combine(Path.Combine(GetAppFolder(), "tools"), "python", "Scripts", "mitmdump.exe"),
-                        Path.Combine(Path.Combine(GetAppFolder(), "tools", "python"), "mitmdump.exe"),
-                        Path.Combine(PythonPath, "mitmdump.exe")
-                    ];
-                    
-                    foreach (var path in possibleMitmdumpPaths)
-                    {
-                        if (File.Exists(path))
-                        {
-                            mitmdumpPath = path;
-                            break;
-                        }
-                    }
+                    await DialogService.ShowInfoDialog(
+                        this.XamlRoot,
+                        "Auto-Start Configured", 
+                        "MITM Modular has been added to startup items."
+                    );
                 }
-                
-                if (!File.Exists(mitmdumpPath))
-                {
-                    throw new Exception($"Mitmdump not found at: {mitmdumpPath}");
-                }
-                
-                string startupCommand = $"\"{mitmdumpPath}\" -s \"{mitm_core_path}\" --set block_global=false --listen-port 45871";
-                string startupPath = Path.Combine(
-                    Environment.GetFolderPath(Environment.SpecialFolder.Startup),
-                    "MitmModular.bat");
-
-                string batchContent;
-
-                if (_showMitmproxyLogs)
-                {
-                    // Create batch file that shows the console window
-                    batchContent = $"@echo off\n"
-                        + $"cd /d \"{Path.GetDirectoryName(RootModularPath)}\"\n"
-                        + $"start \"\" {startupCommand}\n"
-                        + "exit";
-                }
-                else
-                {
-                    // Create batch file that fully hides the console window
-                    batchContent = $"@echo off\n"
-                        + $"cd /d \"{Path.GetDirectoryName(RootModularPath)}\"\n"
-                        + $"powershell -Command \"Start-Process '{mitmdumpPath}' -ArgumentList '-s \\\"{mitm_core_path}\\\" --set block_global=false --listen-port 45871' -WindowStyle Hidden -NoNewWindow -PassThru\"\n"
-                        + "exit";
-                }
-
-                await File.WriteAllTextAsync(startupPath, batchContent);
-
-                await ShowInfoDialog("Auto-Start Configured", "MITM Modular has been added to startup items.");
             }
             catch (Exception ex)
             {
@@ -531,24 +377,26 @@ namespace WinUI_V3.Pages
             }
         }
 
-
         private async Task RemoveFromStartup()
         {
             try
             {
-                // Remove the batch file or shortcut from the Windows startup folder
-                string startupPath = Path.Combine(
-                    Environment.GetFolderPath(Environment.SpecialFolder.Startup),
-                    "MitmModular.bat");
-                
-                if (File.Exists(startupPath))
+                bool success = await ProxyService.RemoveFromStartup();
+                if (success)
                 {
-                    File.Delete(startupPath);
-                    await ShowInfoDialog("Auto-Start Removed", "MITM Modular has been removed from startup items.");
+                    await DialogService.ShowInfoDialog(
+                        this.XamlRoot,
+                        "Auto-Start Removed", 
+                        "MITM Modular has been removed from startup items."
+                    );
                 }
                 else
                 {
-                    await ShowInfoDialog("Not Found", "MITM Modular was not found in startup items.");
+                    await DialogService.ShowInfoDialog(
+                        this.XamlRoot,
+                        "Not Found", 
+                        "MITM Modular was not found in startup items."
+                    );
                 }
             }
             catch (Exception ex)
@@ -563,12 +411,20 @@ namespace WinUI_V3.Pages
             try
             {
                 // Placeholder for future implementation
-                await ShowInfoDialog("Export Feature", "The export feature will be implemented in a future version.");
+                await DialogService.ShowInfoDialog(
+                    this.XamlRoot,
+                    "Export Feature", 
+                    "The export feature will be implemented in a future version."
+                );
             }
             catch (Exception ex)
             {
                 Debug.WriteLine($"Error in export function: {ex.Message}");
-                await ShowErrorDialog("Export Error", $"An error occurred: {ex.Message}");
+                await DialogService.ShowErrorDialog(
+                    this.XamlRoot,
+                    "Export Error", 
+                    $"An error occurred: {ex.Message}"
+                );
             }
         }
         
@@ -577,30 +433,27 @@ namespace WinUI_V3.Pages
             try
             {
                 // Show confirmation dialog
-                ContentDialog confirmDialog = new ContentDialog
-                {
-                    Title = "Confirm Delete",
-                    Content = "Are you sure you want to delete ALL targets? This action cannot be undone.",
-                    PrimaryButtonText = "Delete All",
-                    CloseButtonText = "Cancel",
-                    DefaultButton = ContentDialogButton.Close,
-                    XamlRoot = this.XamlRoot
-                };
+                bool confirmed = await DialogService.ShowConfirmationDialog(
+                    this.XamlRoot,
+                    "Confirm Delete",
+                    "Are you sure you want to delete ALL targets? This action cannot be undone.",
+                    "Delete All",
+                    "Cancel"
+                );
                 
-                var result = await confirmDialog.ShowAsync();
-                if (result != ContentDialogResult.Primary)
+                if (!confirmed)
                 {
                     return;
                 }
                 
-                string pythonExePath = GetPythonExecutablePath();
+                string pythonExePath = PythonService.GetPythonExecutablePath();
                 
                 // Run the CLI command to delete all targets using our embedded Python
                 var startInfo = new ProcessStartInfo
                 {
                     FileName = pythonExePath,
                     Arguments = $"-m mitm_modular.cli delete-all",
-                    WorkingDirectory = Path.GetDirectoryName(ModularPath),
+                    WorkingDirectory = Path.Combine(PythonService.GetAppFolder(), "tools"),
                     UseShellExecute = false,
                     RedirectStandardOutput = true,
                     RedirectStandardError = true,
@@ -620,7 +473,11 @@ namespace WinUI_V3.Pages
                     
                     if (process.ExitCode == 0)
                     {
-                        await ShowInfoDialog("Targets Deleted", "All targets have been deleted.");
+                        await DialogService.ShowInfoDialog(
+                            this.XamlRoot,
+                            "Targets Deleted", 
+                            "All targets have been deleted."
+                        );
                     }
                     else
                     {
@@ -631,7 +488,11 @@ namespace WinUI_V3.Pages
             catch (Exception ex)
             {
                 Debug.WriteLine($"Error deleting all targets: {ex.Message}");
-                await ShowErrorDialog("Delete Error", $"Failed to delete all targets: {ex.Message}");
+                await DialogService.ShowErrorDialog(
+                    this.XamlRoot,
+                    "Delete Error", 
+                    $"Failed to delete all targets: {ex.Message}"
+                );
             }
         }
         
@@ -647,12 +508,20 @@ namespace WinUI_V3.Pages
                 await Task.Delay(1500);
                 
                 // For now, show a dialog stating this is a demo
-                await ShowInfoDialog("Update Check", "This is a demo. Update checking functionality will be implemented in a future version.");
+                await DialogService.ShowInfoDialog(
+                    this.XamlRoot,
+                    "Update Check", 
+                    "This is a demo. Update checking functionality will be implemented in a future version."
+                );
             }
             catch (Exception ex)
             {
                 Debug.WriteLine($"Error checking for updates: {ex.Message}");
-                await ShowErrorDialog("Update Error", $"Failed to check for updates: {ex.Message}");
+                await DialogService.ShowErrorDialog(
+                    this.XamlRoot,
+                    "Update Error", 
+                    $"Failed to check for updates: {ex.Message}"
+                );
             }
             finally
             {
@@ -679,8 +548,11 @@ namespace WinUI_V3.Pages
                 if (!File.Exists(certPath))
                 {
                     // Certificate not found, show error
-                    await ShowErrorDialog("Certificate Not Found", 
-                        $"Certificate file not found at {certPath}. Please run mitmproxy or mitmdump first to generate the certificate.");
+                    await DialogService.ShowErrorDialog(
+                        this.XamlRoot,
+                        "Certificate Not Found", 
+                        $"Certificate file not found at {certPath}. Please run mitmproxy or mitmdump first to generate the certificate."
+                    );
                     return;
                 }
                 
@@ -701,110 +573,37 @@ namespace WinUI_V3.Pages
                     
                     if (process.ExitCode == 0)
                     {
-                        await ShowInfoDialog("Certificate Installed", 
+                        await DialogService.ShowInfoDialog(
+                            this.XamlRoot,
+                            "Certificate Installed", 
                             "The mitmproxy certificate has been successfully installed. " +
-                            "HTTPS interception should now work properly.");
+                            "HTTPS interception should now work properly."
+                        );
                     }
                     else
                     {
-                        await ShowErrorDialog("Installation Failed", 
-                            "Failed to install the certificate. Please try running the application as administrator.");
+                        await DialogService.ShowErrorDialog(
+                            this.XamlRoot,
+                            "Installation Failed", 
+                            "Failed to install the certificate. Please try running the application as administrator."
+                        );
                     }
                 }
             }
             catch (Exception ex)
             {
                 Debug.WriteLine($"Error installing certificate: {ex.Message}");
-                await ShowErrorDialog("Certificate Error", $"Failed to install certificate: {ex.Message}");
+                await DialogService.ShowErrorDialog(
+                    this.XamlRoot,
+                    "Certificate Error", 
+                    $"Failed to install certificate: {ex.Message}"
+                );
             }
             finally
             {
                 // Reset the button
                 InstallCertButton.IsEnabled = true;
                 InstallCertButton.Content = "Install Certificate";
-            }
-        }
-        
-        private async Task ShowErrorDialog(string title, string message)
-        {
-            try
-            {
-                ContentDialog errorDialog = new ContentDialog
-                {
-                    Title = title,
-                    Content = message,
-                    CloseButtonText = "OK",
-                    XamlRoot = this.XamlRoot
-                };
-                
-                await errorDialog.ShowAsync();
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine($"Failed to show error dialog: {ex.Message}");
-            }
-        }
-        
-        private async Task ShowInfoDialog(string title, string message)
-        {
-            try
-            {
-                ContentDialog infoDialog = new ContentDialog
-                {
-                    Title = title,
-                    Content = message,
-                    CloseButtonText = "OK",
-                    XamlRoot = this.XamlRoot
-                };
-                
-                await infoDialog.ShowAsync();
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine($"Failed to show info dialog: {ex.Message}");
-            }
-        }
-        
-        // Update the python executable path to use the embedded version
-        private string GetPythonExecutablePath()
-        {
-            try
-            {
-                // First, check if the embedded Python exists
-                string appDirectory = GetAppFolder();
-                string toolsDirectory = Path.Combine(appDirectory, "tools");
-                string embeddedPythonPath = Path.Combine(toolsDirectory, "python", "python.exe");
-                string embeddedPythonScriptsPath = Path.Combine(toolsDirectory, "python", "Scripts", "python.exe");
-                
-                // Try multiple locations for the embedded Python
-                string[] possiblePaths =
-                [
-                    embeddedPythonPath,
-                    embeddedPythonScriptsPath,
-                    Path.Combine(toolsDirectory, "python", "python.exe"),
-                    Path.Combine(Directory.GetCurrentDirectory(), "tools", "python", "python.exe"),
-                    Path.Combine(Path.GetDirectoryName(ModularPath) ?? string.Empty, "python", "python.exe"),
-                    "python" // Fallback to system Python only as last resort
-                ];
-                
-                foreach (string path in possiblePaths)
-                {
-                    Debug.WriteLine($"Checking for Python at: {path}");
-                    if (File.Exists(path))
-                    {
-                        Debug.WriteLine($"Found Python at: {path}");
-                        return path;
-                    }
-                }
-                
-                // If not found, return the default "python" command which uses the system Python
-                Debug.WriteLine("No embedded Python found, falling back to system Python");
-                return "python";
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine($"Error getting Python path: {ex.Message}");
-                return "python"; // Fallback to system Python
             }
         }
     }

@@ -11,6 +11,7 @@ using System.Threading.Tasks;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI;
 using System.Text.RegularExpressions;
+using WinUI_V3.Helpers;
 
 namespace WinUI_V3.Pages
 {
@@ -127,7 +128,7 @@ namespace WinUI_V3.Pages
         {
             try
             {
-                bool isRunning = await IsProxyRunning();
+                bool isRunning = await ProxyService.IsProxyRunning();
                 
                 // Update the UI elements based on server status
                 if (isRunning)
@@ -152,94 +153,6 @@ namespace WinUI_V3.Pages
             }
         }
         
-        // Helper method to check if a process is our mitmdump process
-        private static bool IsMitmdumpProcess(Process process)
-        {
-            try
-            {
-                if (process.MainModule?.FileName != null)
-                {
-                    string processPath = process.MainModule.FileName;
-                    string appDirectory = GetAppFolder();
-                    string toolsPath = Path.Combine(appDirectory, "tools");
-                    
-                    // Check if this is our embedded Python running mitmdump
-                    if (processPath.Contains("python") && 
-                        (processPath.Contains(toolsPath) || processPath.Contains("Scripts\\mitmdump")))
-                    {
-                        return true;
-                    }
-                }
-                return false;
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine($"Error checking process: {ex.Message}");
-                return false;
-            }
-        }
-        
-        private static async Task<bool> IsProxyRunning()
-        {
-            try
-            {
-                // Check if the proxy is running by looking for mitmdump processes
-                var processes = Process.GetProcessesByName("mitmdump");
-                var pythonProcesses = Process.GetProcessesByName("python");
-                
-                // Check if any of the known processes match our criteria
-                foreach (var process in processes)
-                {
-                    try
-                    {
-                        if (IsMitmdumpProcess(process))
-                        {
-                            process.Dispose();
-                            return true;
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        Debug.WriteLine($"Error checking mitmdump process: {ex.Message}");
-                    }
-                    finally
-                    {
-                        process.Dispose();
-                    }
-                }
-                
-                // Also check python processes that might be running our mitmdump
-                foreach (var process in pythonProcesses)
-                {
-                    try 
-                    {
-                        if (IsMitmdumpProcess(process))
-                        {
-                            process.Dispose();
-                            return true;
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        Debug.WriteLine($"Error checking python process: {ex.Message}");
-                    }
-                    finally
-                    {
-                        process.Dispose();
-                    }
-                }
-                
-                await Task.CompletedTask; // Add an await operation to make this truly async
-                return false;
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine($"Error checking if proxy is running: {ex.Message}");
-                await Task.CompletedTask; // Add an await operation to make this truly async
-                return false;
-            }
-        }
-
         // Load targets from the database with improved error handling
         private async void LoadTargets()
         {
@@ -336,7 +249,6 @@ namespace WinUI_V3.Pages
                 
                 try
                 {
-                    // Remove the --db parameter since it's causing issues and isn't needed
                     Debug.WriteLine("Running CLI command to get targets");
                 var results = await RunCliCommandAsync("json-list-all");
                     Debug.WriteLine($"Got {results.Count} targets from CLI");
@@ -424,52 +336,7 @@ namespace WinUI_V3.Pages
         {
             try
             {
-                string pythonPath = GetPythonExecutablePath();
-                Debug.WriteLine($"Checking Python availability using: {pythonPath}");
-                
-                var startInfo = new ProcessStartInfo
-                {
-                    FileName = pythonPath,
-                    Arguments = "--version",
-                    UseShellExecute = false,
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true,
-                    CreateNoWindow = true
-                };
-
-                using var process = new Process { StartInfo = startInfo };
-                try
-                {
-                    Debug.WriteLine("Starting Python process for version check");
-                    bool started = process.Start();
-
-                    if (!started)
-                    {
-                        Debug.WriteLine("Failed to start Python process");
-                        return false;
-                    }
-
-                    string output = await process.StandardOutput.ReadToEndAsync();
-                    string error = await process.StandardError.ReadToEndAsync();
-
-                    await process.WaitForExitAsync();
-
-                    Debug.WriteLine($"Python version check output: {output}");
-                    if (!string.IsNullOrEmpty(error))
-                    {
-                        Debug.WriteLine($"Python version check error: {error}");
-                    }
-
-                    Debug.WriteLine($"Python version check exit code: {process.ExitCode}");
-
-                    // Just check if Python exists - don't check for module
-                    return process.ExitCode == 0;
-                }
-                catch (Exception ex)
-                {
-                    Debug.WriteLine($"Error checking Python version: {ex.Message}");
-                    return false;
-                }
+                return await PythonService.IsPythonAvailable();
             }
             catch (Exception ex)
             {
@@ -484,66 +351,11 @@ namespace WinUI_V3.Pages
             try
             {
                 Debug.WriteLine($"Checking for Python module availability: {moduleName}");
-                
-                // Get the python executable path - use a static method to avoid instance requirement
-                string pythonPath = "python";
-                try {
-                    string appDirectory = GetAppFolder();
-                    string toolsDirectory = Path.Combine(appDirectory, "tools");
-                    string embeddedPythonPath = Path.Combine(toolsDirectory, "python", "python.exe");
-                    if (File.Exists(embeddedPythonPath)) {
-                        pythonPath = embeddedPythonPath;
-                    }
-                } catch {
-                    // Fallback to system Python on any error
-                }
-                
-                var startInfo = new ProcessStartInfo
-                {
-                    FileName = pythonPath,
-                    Arguments = $"-c \"import {moduleName}; print('Module found')\"",
-                    UseShellExecute = false,
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true,
-                    CreateNoWindow = true
-                };
-
-                using var process = new Process { StartInfo = startInfo };
-                try
-                {
-                    Debug.WriteLine($"Starting Python process for module check: {moduleName}");
-                    bool started = process.Start();
-
-                    if (!started)
-                    {
-                        Debug.WriteLine($"Failed to start Python process for module check: {moduleName}");
-                        return false;
-                    }
-
-                    string output = await process.StandardOutput.ReadToEndAsync();
-                    string error = await process.StandardError.ReadToEndAsync();
-
-                    await process.WaitForExitAsync();
-
-                    Debug.WriteLine($"Python module check output: {output}");
-                    if (!string.IsNullOrEmpty(error))
-                    {
-                        Debug.WriteLine($"Python module check error: {error}");
-                    }
-
-                    Debug.WriteLine($"Python module check exit code: {process.ExitCode}");
-
-                    return process.ExitCode == 0 && output.Contains("Module found");
-                }
-                catch (Exception ex)
-                {
-                    Debug.WriteLine($"Error checking Python module: {ex.Message}");
-                    return false;
-                }
+                return await PythonService.IsModuleAvailable(moduleName);
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"Exception in IsModuleAvailable: {ex.Message}");
+                Debug.WriteLine($"Error checking module availability: {ex.Message}");
                 return false;
             }
         }
@@ -553,15 +365,7 @@ namespace WinUI_V3.Pages
         {
             try
             {
-                ContentDialog errorDialog = new()
-                {
-                    Title = title,
-                    Content = message,
-                    CloseButtonText = "OK",
-                    XamlRoot = this.XamlRoot
-                };
-                
-                await errorDialog.ShowAsync();
+                await DialogService.ShowErrorDialog(this.XamlRoot, title, message);
             }
             catch (Exception ex)
             {
@@ -584,11 +388,11 @@ namespace WinUI_V3.Pages
             
             try
             {
-                string pythonPath = GetPythonExecutablePath();
+                string pythonPath = PythonService.GetPythonExecutablePath();
                 Debug.WriteLine($"Using Python executable: {pythonPath}");
                 
                 // Get app directory and use tools subfolder
-                string appDirectory = GetAppFolder();
+                string appDirectory = PythonService.GetAppFolder();
                 string basePath = Path.Combine(appDirectory, "tools");
                 ModularPath = Path.Combine(basePath, "mitm_modular");
                 
@@ -600,16 +404,15 @@ namespace WinUI_V3.Pages
                     throw new DirectoryNotFoundException($"Directory not found: {modularDirPath ?? "null"}");
                 }
                 
-                // Check if cli.py exists in the expected location
-                string cliPath = Path.Combine(ModularPath, "cli.py");
-                Debug.WriteLine($"Checking if CLI file exists at: {cliPath}, exists: {File.Exists(cliPath)}");
+                // Check if the mitm_modular directory exists
+                Debug.WriteLine($"Checking if module directory exists at: {ModularPath}, exists: {Directory.Exists(ModularPath)}");
+                if (!Directory.Exists(ModularPath))
+                {
+                    Debug.WriteLine($"Module directory not found: {ModularPath}");
+                    throw new DirectoryNotFoundException($"Module directory not found: {ModularPath}");
+                }
                 
-                // Create a wrapper script to handle the import issue
-                string wrapperScript = CreatePythonWrapper();
-                Debug.WriteLine($"Created wrapper script at: {wrapperScript}");
-                
-                // Build the command line arguments differently
-                // Format the arguments as an array first, then join them
+                // Build the command line arguments
                 var argsList = new List<string>
                 {
                     // Add command as first argument (list, add, delete, etc.)
@@ -648,11 +451,12 @@ namespace WinUI_V3.Pages
                 string cliArguments = string.Join(" ", argsList);
                 Debug.WriteLine($"CLI arguments: {cliArguments}");
                 
+                // Use the '-m' flag to directly invoke the module as specified in the README
                 ProcessStartInfo startInfo = new()
                 {
                     FileName = pythonPath,
-                    WorkingDirectory = basePath, // Set working directory to the hardcoded path
-                    Arguments = $"{wrapperScript} {cliArguments}",
+                    WorkingDirectory = basePath, // Set working directory to the tools path
+                    Arguments = $"-m mitm_modular.cli {cliArguments}",
                     UseShellExecute = false,
                     RedirectStandardOutput = true,
                     RedirectStandardError = true,
@@ -2129,36 +1933,6 @@ namespace WinUI_V3.Pages
         }
 
         // Update the hardcoded paths to be more flexible and include validation
-        private static string GetAppFolder()
-        {
-            try
-            {
-                // Get the application's executable path
-                string? exePath = System.Diagnostics.Process.GetCurrentProcess().MainModule?.FileName;
-                if (exePath == null)
-                {
-                    Debug.WriteLine("Unable to get executable path, falling back to current directory");
-                    return Directory.GetCurrentDirectory();
-                }
-                
-                string? exeDir = Path.GetDirectoryName(exePath);
-                if (exeDir == null)
-                {
-                    Debug.WriteLine("Unable to get directory of executable, falling back to current directory");
-                    return Directory.GetCurrentDirectory();
-                }
-                
-                Debug.WriteLine($"Application path: {exeDir}");
-                return exeDir;
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine($"Error getting app folder: {ex.Message}");
-                // Fallback to current directory
-                return Directory.GetCurrentDirectory();
-            }
-        }
-
         private static string ResolvePath(string path)
         {
             try
@@ -2170,7 +1944,7 @@ namespace WinUI_V3.Pages
                 }
 
                 // Get the executable directory and use the tools subfolder
-                string appDirectory = GetAppFolder();
+                string appDirectory = PythonService.GetAppFolder();
                 string toolsPath = Path.Combine(appDirectory, "tools");
                 string fullPath = Path.Combine(toolsPath, path);
                 Debug.WriteLine($"Resolved path {path} to {fullPath}");
@@ -2186,128 +1960,21 @@ namespace WinUI_V3.Pages
         // Update the python executable path to use the embedded version
         private string GetPythonExecutablePath()
         {
-            try
-            {
-                // First, check if the embedded Python exists
-                string appDirectory = GetAppFolder();
-                string toolsDirectory = Path.Combine(appDirectory, "tools");
-                string embeddedPythonPath = Path.Combine(toolsDirectory, "python", "python.exe");
-                string embeddedPythonScriptsPath = Path.Combine(toolsDirectory, "python", "Scripts", "python.exe");
-                
-                // Try multiple locations for the embedded Python
-                string[] possiblePaths =
-                [
-                    embeddedPythonPath,
-                    embeddedPythonScriptsPath,
-                    Path.Combine(toolsDirectory, "python", "python.exe"),
-                    Path.Combine(Directory.GetCurrentDirectory(), "tools", "python", "python.exe"),
-                    Path.Combine(Path.GetDirectoryName(ModularPath) ?? string.Empty, "python", "python.exe"),
-                    "python" // Fallback to system Python only as last resort
-                ];
-                
-                foreach (string path in possiblePaths)
-                {
-                    Debug.WriteLine($"Checking for Python at: {path}");
-                    if (File.Exists(path))
-                    {
-                        Debug.WriteLine($"Found Python at: {path}");
-                        return path;
-                    }
-                }
-                
-                // If not found, return the default "python" command which uses the system Python
-                Debug.WriteLine("No embedded Python found, falling back to system Python");
-                return "python";
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine($"Error getting Python path: {ex.Message}");
-                return "python"; // Fallback to system Python
-            }
+            return PythonService.GetPythonExecutablePath();
         }
 
-        // Create a Python wrapper script that adds parent directory to Python path
-        private static string CreatePythonWrapper()
+        // Model class for target items
+        public class TargetItem
         {
-            try
-            {
-                // Get the tools directory path
-                string appDirectory = GetAppFolder();
-                string toolsPath = Path.Combine(appDirectory, "tools");
-                
-                string wrapperContent = $@"
-import os
-import sys
-import traceback
-
-print('Python wrapper script starting...')
-
-# Get the directory of this script
-script_dir = os.path.dirname(os.path.abspath(__file__))
-print(f'Script directory: {{script_dir}}')
-
-# Add multiple possible paths to Python's path
-possible_paths = [
-    script_dir,
-    os.path.dirname(script_dir),
-    r'{toolsPath}'
-]
-
-for path in possible_paths:
-    if path not in sys.path and os.path.exists(path):
-        sys.path.insert(0, path)
-        print(f'Added {{path}} to Python path')
-
-print(f'Python path: {{sys.path}}')
-
-# Print the arguments we received for debugging
-print(f'Original arguments: {{sys.argv}}')
-
-# Use the correct format from the README: python -m mitm_modular.cli [command] [args]
-try:
-    # Create a new command that properly calls the module
-    module_args = [sys.executable, '-m', 'mitm_modular.cli'] + sys.argv[1:]
-    print(f'Executing module command: {{module_args}}')
-    
-    # Run the process and capture the return code
-    import subprocess
-    result = subprocess.run(module_args, check=True)
-    sys.exit(result.returncode)
-except subprocess.CalledProcessError as e:
-    print(f'ERROR: Command failed with return code {{e.returncode}}')
-    sys.exit(e.returncode)
-except Exception as e:
-    print(f'ERROR executing CLI: {{e}}')
-    traceback.print_exc()
-    sys.exit(1)
-";
-                
-                // Create the wrapper script in a temporary file
-                string tempPath = Path.GetTempFileName();
-                string wrapperPath = Path.ChangeExtension(tempPath, ".py");
-                File.WriteAllText(wrapperPath, wrapperContent);
-                
-                return wrapperPath;
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine($"Error creating Python wrapper: {ex.Message}");
-                throw;
-            }
+            public int Id { get; set; }
+            public string TargetUrl { get; set; } = string.Empty;
+            public string? HttpStatus { get; set; } = "200";
+            public string? TargetHttpStatus { get; set; }
+            public bool IsStaticResponse { get; set; } = true;
+            public bool IsNoModification { get; set; } = false;
+            public string ModificationType { get; set; } = "static";
+            public string ResponseContent { get; set; } = string.Empty;
+            public bool IsEnabled { get; set; } = true;
         }
-    }
-
-    // Model class for target items
-    public class TargetItem
-    {
-        public int Id { get; set; }
-        public string TargetUrl { get; set; } = string.Empty;
-        public string? HttpStatus { get; set; } = "200";
-        public string? TargetHttpStatus { get; set; }
-        public bool IsStaticResponse { get; set; } = true;
-        public bool IsNoModification { get; set; } = false;
-        public string ModificationType { get; set; } = "static";
-        public string ResponseContent { get; set; } = string.Empty;
-        public bool IsEnabled { get; set; } = true;
     }
 } 
