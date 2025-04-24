@@ -134,5 +134,50 @@ namespace WinUI_V3.Helpers
                 return ContentDialogResult.None;
             }
         }
+        
+        // Show a detailed log dialog with scrollable text
+        public static async Task ShowLogDialog(XamlRoot xamlRoot, string title, string logContent, string closeButtonText = "Close")
+        {
+            try
+            {
+                // Create a TextBox for the logs with monospaced font
+                var textBox = new TextBox
+                {
+                    Text = logContent,
+                    IsReadOnly = true,
+                    AcceptsReturn = true,
+                    TextWrapping = Microsoft.UI.Xaml.TextWrapping.Wrap,
+                    FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("Consolas")
+                    // Can't set attached property in object initializer
+                };
+                
+                // Create a ScrollViewer to enable scrolling for long logs
+                var scrollViewer = new ScrollViewer
+                {
+                    Content = textBox,
+                    HorizontalScrollBarVisibility = Microsoft.UI.Xaml.Controls.ScrollBarVisibility.Auto,
+                    VerticalScrollBarVisibility = Microsoft.UI.Xaml.Controls.ScrollBarVisibility.Auto,
+                    Width = 800,
+                    MaxHeight = 500
+                };
+                
+                // Set the attached property after object initialization
+                ScrollViewer.SetVerticalScrollBarVisibility(textBox, Microsoft.UI.Xaml.Controls.ScrollBarVisibility.Auto);
+                
+                ContentDialog logDialog = new ContentDialog
+                {
+                    Title = title,
+                    Content = scrollViewer,
+                    CloseButtonText = closeButtonText,
+                    XamlRoot = xamlRoot
+                };
+                
+                await logDialog.ShowAsync();
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Failed to show log dialog: {ex.Message}");
+            }
+        }
     }
 } 

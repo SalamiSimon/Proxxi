@@ -29,15 +29,38 @@ namespace WinUI_V3
             var windowId = Microsoft.UI.Win32Interop.GetWindowIdFromWindow(windowHandle);
             var appWindow = Microsoft.UI.Windowing.AppWindow.GetFromWindowId(windowId);
             
-            // Set fixed size of 800x800
-            appWindow.Resize(new Windows.Graphics.SizeInt32 { Width = 820, Height = 800 });
+            // Get the display size
+            var displayArea = Microsoft.UI.Windowing.DisplayArea.GetFromWindowId(windowId, Microsoft.UI.Windowing.DisplayAreaFallback.Primary);
+            var workAreaSize = displayArea.WorkArea;
             
-            // Prevent resizing by setting the window to non-resizable
+            // Calculate appropriate window size
+            // Default size for standard display
+            int defaultWidth = 1020;
+            int defaultHeight = 1000;
+            
+            // Calculate appropriate size based on screen resolution
+            // For smaller displays, scale down but keep a minimum size
+            int minWidth = 720;
+            int minHeight = 700;
+            
+            // If screen is smaller than 1280x720, scale down proportionally
+            double widthScale = Math.Min(1.0, (double)workAreaSize.Width / 1280);
+            double heightScale = Math.Min(1.0, (double)workAreaSize.Height / 800);
+            double scale = Math.Min(widthScale, heightScale);
+            
+            // Calculate adjusted size (with minimum constraints)
+            int adjustedWidth = Math.Max(minWidth, (int)(defaultWidth * scale));
+            int adjustedHeight = Math.Max(minHeight, (int)(defaultHeight * scale));
+            
+            // Resize window to appropriate size
+            appWindow.Resize(new Windows.Graphics.SizeInt32 { Width = adjustedWidth, Height = adjustedHeight });
+            
+            // Allow user to resize the window
             var presenter = appWindow.Presenter as Microsoft.UI.Windowing.OverlappedPresenter;
             if (presenter != null)
             {
-                presenter.IsResizable = false;
-                presenter.IsMaximizable = false;
+                presenter.IsResizable = true;
+                presenter.IsMaximizable = true;
             }
 
             // Set up navigation

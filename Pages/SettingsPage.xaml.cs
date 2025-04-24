@@ -100,14 +100,14 @@ namespace WinUI_V3.Pages
                         ProgressContainer.Visibility = Visibility.Visible;
                         StatusText.Text = "Installing dependencies...";
                         
-                        // Install dependencies
-                        bool installSuccess = await DependencyService.InstallDependencies();
+                        // Install dependencies - now returns success status and logs
+                        var installResult = await DependencyService.InstallDependencies();
                         
                         // Hide progress indicator
                         ProgressRing.IsActive = false;
                         ProgressContainer.Visibility = Visibility.Collapsed;
                         
-                        if (installSuccess)
+                        if (installResult.Success)
                         {
                             await DialogService.ShowInfoDialog(
                                 this.XamlRoot,
@@ -117,11 +117,31 @@ namespace WinUI_V3.Pages
                         }
                         else
                         {
-                            await DialogService.ShowErrorDialog(
+                            // Show an error dialog with the option to view detailed logs
+                            var result = await DialogService.ShowDialog(
                                 this.XamlRoot,
                                 "Installation Failed",
-                                "Failed to install dependencies. Please try again or install Python and mitmproxy manually."
+                                "Failed to install dependencies. You can view the installation logs for more details.",
+                                "View Logs",
+                                "Try Again",
+                                "Close"
                             );
+                            
+                            // Handle user's choice
+                            if (result == ContentDialogResult.Primary)
+                            {
+                                // User wants to view logs
+                                await DialogService.ShowLogDialog(
+                                    this.XamlRoot,
+                                    "Installation Logs",
+                                    installResult.Logs
+                                );
+                            }
+                            else if (result == ContentDialogResult.Secondary)
+                            {
+                                // User wants to try again
+                                await RetryDependencyInstallation();
+                            }
                         }
                     }
                 }
@@ -604,6 +624,76 @@ namespace WinUI_V3.Pages
                 // Reset the button
                 InstallCertButton.IsEnabled = true;
                 InstallCertButton.Content = "Install Certificate";
+            }
+        }
+
+        // Helper method to retry dependency installation
+        private async Task RetryDependencyInstallation()
+        {
+            try
+            {
+                // Show progress indicator
+                ProgressRing.IsActive = true;
+                ProgressContainer.Visibility = Visibility.Visible;
+                StatusText.Text = "Retrying dependency installation...";
+                
+                // Install dependencies - now returns success status and logs
+                var installResult = await DependencyService.InstallDependencies();
+                
+                // Hide progress indicator
+                ProgressRing.IsActive = false;
+                ProgressContainer.Visibility = Visibility.Collapsed;
+                
+                if (installResult.Success)
+                {
+                    await DialogService.ShowInfoDialog(
+                        this.XamlRoot,
+                        "Installation Complete",
+                        "Required dependencies have been installed successfully."
+                    );
+                }
+                else
+                {
+                    // Show an error dialog with the option to view detailed logs
+                    var result = await DialogService.ShowDialog(
+                        this.XamlRoot,
+                        "Installation Failed",
+                        "Failed to install dependencies. You can view the installation logs for more details.",
+                        "View Logs",
+                        "Try Again",
+                        "Close"
+                    );
+                    
+                    // Handle user's choice
+                    if (result == ContentDialogResult.Primary)
+                    {
+                        // User wants to view logs
+                        await DialogService.ShowLogDialog(
+                            this.XamlRoot,
+                            "Installation Logs",
+                            installResult.Logs
+                        );
+                    }
+                    else if (result == ContentDialogResult.Secondary)
+                    {
+                        // User wants to try again
+                        await RetryDependencyInstallation();
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error retrying dependency installation: {ex.Message}");
+                
+                // Hide progress indicator
+                ProgressRing.IsActive = false;
+                ProgressContainer.Visibility = Visibility.Collapsed;
+                
+                await DialogService.ShowErrorDialog(
+                    this.XamlRoot,
+                    "Error", 
+                    $"An error occurred during installation: {ex.Message}"
+                );
             }
         }
     }
