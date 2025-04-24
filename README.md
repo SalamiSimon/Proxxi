@@ -5,7 +5,7 @@
 
 **⚠️ Work in progress - Not ready for release! ⚠️**  
 
-![image](https://github.com/user-attachments/assets/9032b904-0604-4913-bda5-b8ba21bf0a34)
+<img src="https://github.com/user-attachments/assets/9032b904-0604-4913-bda5-b8ba21bf0a34" width="400" alt="Proxxi Screenshot">     <img src="https://github.com/user-attachments/assets/d6fe4da8-deee-4a5f-bcd3-1dfabdbf5d51" width="400" alt="Proxxi Screenshot">
 
 ## What is Proxxi?
 
