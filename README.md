@@ -1,71 +1,69 @@
-# Proxxi - HTTP Traffic Interceptor and Modifier
+# Proxxi - Local HTTP/HTTPS Proxy Tool
 
-Proxxi is a Windows application built using WinUI 3 that allows you to intercept and modify HTTP/HTTPS traffic. It provides a user-friendly interface for configuring traffic interception rules.
+![Project Status](https://img.shields.io/badge/status-alpha-red) 
+![Python Version](https://img.shields.io/badge/python-3.8+-blue)
 
-## Requirements
+**⚠️ Work in progress - Not ready for release! ⚠️**  
 
-- Windows 10 version 1809 (build 17763) or later
-- [Windows App SDK Runtime](https://aka.ms/windowsappsdk/1.5/1.5.240227000/windowsappruntimeinstall-x64.exe)
-- .NET 8 Desktop Runtime
+![image](https://github.com/user-attachments/assets/9032b904-0604-4913-bda5-b8ba21bf0a34)
 
-## Installation
+## What is Proxxi?
 
-The application can be installed using the MSI installer located in the `ProxxiSetup\bin\Release\` directory. This installer includes all necessary runtime components.
+Proxxi is a local proxy server that lets you intercept and modify API responses. It's built on top of `mitmproxy` with a simple WinUI 3 interface.
 
-### Important: Windows App SDK Installation
+Features
 
-WinUI 3 applications require the Windows App SDK Runtime to be installed. There are two ways to handle this:
+✔️ URL matching (exact or regex)
 
-1. **Preferred Method**: Download and install the Windows App SDK Runtime manually from [here](https://aka.ms/windowsappsdk/1.5/1.5.240227000/windowsappruntimeinstall-x64.exe) before running the application. This is the most reliable approach.
+✔️ Static JSON response replacement
 
-2. **Alternative Method**: Our application includes scripts that can attempt to download and install the Windows App SDK Runtime automatically, but this might not work in all environments due to security restrictions.
+✔️ Python scripting for dynamic changes
 
-### Installation Steps
+✔️ HTTP status code matching
 
-1. Install the application using the MSI installer
-2. Manually install the Windows App SDK Runtime if not already installed
-3. Run the application using the shortcuts or directly from the installation folder
+✔️ Toggle rules on/off
 
-## Troubleshooting WinUI 3 Application Launch Issues
+## ⚠️ Known Issues
 
-If you're experiencing issues launching the application, try the following:
+### Installation
+- **Python dependencies**: Auto-install is unstable and might not detect globally installed packages  
 
-1. **Manually Install Windows App SDK Runtime**: This is the most important step for WinUI 3 applications. Download and run the installer from [here](https://aka.ms/windowsappsdk/1.5/1.5.240227000/windowsappruntimeinstall-x64.exe).
+### Functional Limitations
+- Only works with **JSON responses** (no HTML/plain text support)
+- Cannot modify **HTTP headers**
+- No **request type filtering** (GET/POST/PUT/etc.)
+- **WebSockets** not supported
+- Potential **memory leaks** during long sessions
 
-2. **Use the LaunchApp.bat file**: The installer includes a launcher script that properly initializes the Windows App SDK runtime components before launching the application. You can find this file in the installation directory.
+## 🚀 Usage
 
-3. **Run the diagnostic script**: Run the `DiagnoseWinUI.ps1` PowerShell script included in the installation directory to check if all dependencies are properly installed.
+1. **Configure your app** to use:
+Address: 127.0.0.1
+Port: 45871
 
-4. **Run as Administrator**: In some cases, running the application as administrator might help, especially during the first launch.
 
-5. **Common issues**:
-   - Our detection script might not correctly identify the Windows App SDK even when it's installed. If you've manually installed it but the script still says it's not found, try running the application directly.
-   - Different Windows versions might store the Windows App SDK files in different locations
-   - In some cases, Windows security settings might prevent the application from running
-   - The initialization of Windows App SDK components might fail, but the application could still work if the SDK is properly installed
+2. **For HTTPS traffic**:
+- Install mitmproxy certificate via Settings
 
-## FAQ
+3. **Add target rules**:
+- Define URL patterns
+- Set response modifications
 
-### Q: I installed Windows App SDK Runtime manually, but the LaunchApp.bat script still says it's not installed. What should I do?
-A: This is a known issue. The script might not detect all installation types correctly. If you've installed the SDK manually, try running the application directly from the installation folder instead of using the launcher script.
+4. **Enable proxy** in Settings tab
 
-### Q: How can I verify that Windows App SDK Runtime is properly installed?
-A: Run the `DiagnoseWinUI.ps1` script which will check various possible locations where the SDK might be installed.
+## 🔧 Proxifier Setup
 
-### Q: Do all users need to install Windows App SDK Runtime separately?
-A: Yes, the Windows App SDK Runtime is a system-wide dependency required by all WinUI 3 applications. It needs to be installed once per machine, similar to how .NET Runtime is installed.
+For application-specific proxying (without system-wide changes):
 
-## Developer Information
+1. **Add Proxy Server**
+- Address: 127.0.0.1
+- Port: 45871 
+- Protocol: HTTPS
 
-When building the application or making changes, keep the following in mind:
+2. **Create Rule**
+- Select your target application
+- Assign to Proxxi proxy profile
 
-1. The application uses the Windows App SDK for its UI
-2. The application uses the MITM Modular Python package for traffic interception
-3. The installer is built using WiX Toolset 3.14
-
-## Building from Source
-
-1. Ensure you have the .NET 8 SDK installed
-2. Ensure you have the Windows App SDK installed
-3. Build the solution using Visual Studio or the `dotnet build` command
-4. To create the installer, run the `build.bat` script in the `ProxxiSetup` directory 
+3. **Enable Profile**
+- Activate the rule
+- Verify traffic appears in Proxxi console
